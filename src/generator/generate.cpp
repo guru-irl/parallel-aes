@@ -7,6 +7,7 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <dirent.h>
+#include "../include/genlib.hpp"
 
 #define SYSERROR()  errno
 #define KEYLENGTH 16
@@ -18,17 +19,6 @@ typedef unsigned char byte;
 /*
     1 Step -> M Batches -> N files per batch
 */
-
-struct opts {
-    int n_files_start;
-    int n_files_end;
-    int step;
-    int m_batches;
-    string path;
-
-    int minlength;
-    int maxlength;
-};
 
 void make_dir(string path) {
     const int dir_err = mkdir(path.c_str() , S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH);
@@ -111,6 +101,7 @@ void generate(opts vars) {
 int main(int argc, char const *argv[])
 {
     opts vars;
+    
     /*
     vars.path = argv[1];
     vars.n_files_start = stoi(argv[2]);
@@ -119,7 +110,7 @@ int main(int argc, char const *argv[])
     vars.m_batches = stoi(argv[5]);
     */  
     
-    vars.path = "dataset";
+    vars.path = "../dataset";
     vars.n_files_start = 100;
     vars.n_files_end = 1000;
     vars.step = 100;
