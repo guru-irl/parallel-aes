@@ -1,7 +1,35 @@
+/*******************************************************************
+* Header File Declarations
+********************************************************************/
+
 #include <iostream>
 #include "aeslib.h"
 using namespace std;
 
+/*******************************************************************
+* Pretty Printing Hex Values
+********************************************************************/
+struct HexCharStruct
+{
+  unsigned char c;
+  HexCharStruct(unsigned char _c) : c(_c) { }
+};
+
+inline std::ostream& operator<<(std::ostream& o, const HexCharStruct& hs)
+{
+  return (o << std::hex << (int)hs.c);
+}
+
+inline HexCharStruct hex(unsigned char _c)
+{
+  return HexCharStruct(_c);
+}
+
+/********************************************************************
+* AES Implementation
+*********************************************************************/
+
+#define N_ROUNDS 10
 
 void AddRoundKey(byte *state, byte *RoundKey) {
     for(int i = 0; i < 16; i++) {
@@ -68,6 +96,27 @@ void MixColumns(byte *state) {
 
 	for (int i = 0; i < 16; i++) {
 		state[i] = tmp[i];
+	}
+}
+
+void Round(byte *state, byte *RoundKey, bool isFinal=false) {
+	SubBytes(state);
+	ShiftRows(state);
+	if(!isFinal) MixColumns(state);
+	AddRoundKey(state, RoundKey);
+}
+
+void Cipher(byte *message, int msg_length, byte expandedKey[176], byte *cipher) {
+	// byte cipher[msg_length];
+	for(int i = 0; i < msg_length; i++) {
+		cipher[i] = message[i];
+	}
+
+	for(int i = 0; i < msg_length; i+=16) {
+		AddRoundKey(cipher + i, expandedKey);
+		for(int n = 1; n <= N_ROUNDS; n++) {
+			Round(cipher + i, expandedKey + (n)*16, n == 10);
+		}
 	}
 }
 
