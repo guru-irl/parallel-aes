@@ -9,6 +9,7 @@
 #include <dirent.h>
 
 #define SYSERROR()  errno
+#define KEYLENGTH 16
 
 using namespace std;
 
@@ -70,6 +71,21 @@ void generate_file(string path, int n_bytes) {
         cerr<<"Failed to open file : "<< SYSERROR() << std::endl;
         exit(1);
     }
+
+    fout.open(path + "_key");
+    if(fout.is_open()){
+        int i;
+        byte b;
+        for(i = 0; i < KEYLENGTH; i++) {
+            b = rand()%256;
+            fout << b;
+        }
+        fout.close();
+    }
+    else {
+        cerr<<"Failed to open file : "<< SYSERROR() << std::endl;
+        exit(1);
+    }
 }
 
 void generate(opts vars) {
@@ -85,6 +101,7 @@ void generate(opts vars) {
                 path = path + "/" + to_string(k);
                 cout << path << endl;
                 n_bytes = vars.minlength + rand()%(vars.maxlength - vars.minlength + 1);
+                n_bytes -= n_bytes%16;
                 generate_file(path, n_bytes);
             }
         }
