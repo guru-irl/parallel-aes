@@ -5,8 +5,11 @@
 #include <iostream>
 #include <string>
 #include <stdlib.h>
+#include <fstream>
 
-#include "aeslib.h"
+#include "../include/aeslib.hpp"
+#include "../include/genlib.hpp"
+
 using namespace std;
 
 /*******************************************************************
@@ -108,7 +111,6 @@ void Round(byte *state, byte *RoundKey, bool isFinal=false) {
 }
 
 void Cipher(byte *message, int msg_length, byte expandedKey[176], byte *cipher) {
-	// byte cipher[msg_length];
 	for(int i = 0; i < msg_length; i++) {
 		cipher[i] = message[i];
 	}
@@ -121,24 +123,63 @@ void Cipher(byte *message, int msg_length, byte expandedKey[176], byte *cipher) 
 	}
 }
 
+void encrypt(string msg_path, string key_path, string out_path) {
+	ifstream f_msg(msg_path);
+	ifstream f_key(key_path);
+	ofstream fout(out_path);
+
+	if(f_msg && f_key) {
+
+		f_msg.seekg(0, f_msg.end);
+		int n = f_msg.tellg();
+		cout << n;
+		f_msg.seekg(0, f_msg.beg);
+
+		byte message[n];
+		byte cipher[n];
+		byte key[16];
+		byte expandedKey[176];
+
+		f_msg.read(reinterpret_cast<char *> (message), n);
+		f_key.read(reinterpret_cast<char *> (key), 16);
+
+		// cout << hex(key, 16) << endl;
+
+		KeyExpansion(key, expandedKey);
+		Cipher(message, n, expandedKey, cipher);
+		fout.write(reinterpret_cast<char *> (cipher), n);
+
+		// cout << "MSG\n" << hex(message, n) << endl << endl; 
+		// cout << "Cry\n" << hex(cipher, n) << endl << endl;	
+	}
+}
+
 int main(int argc, char const *argv[])
 {
-	byte message[] = {0x32, 0x43, 0xf6, 0xa8, 0x88, 0x5a, 0x30, 0x8d, 0x31, 0x31, 0x98, 0xa2, 0xe0, 0x37, 0x07, 0x34};
-	byte key[] = {0x2b, 0x7e, 0x15, 0x16, 0x28, 0xae, 0xd2, 0xa6, 0xab, 0xf7, 0x15, 0x88, 0x09, 0xcf, 0x4f, 0x3c};
+	opts vars = get_defaults();
 
-	byte expandedKey[176];
-	KeyExpansion(key, expandedKey);
-
-	cout << hex(message, 16) << endl;
-	cout << hex(key, 16) << endl;
-	cout << hex(expandedKey, 176) << endl;
-
-	int n = 16;
-	byte cipher[16];
-
-	Cipher(message, n, expandedKey, cipher);
-
-	cout << hex(cipher, n);
-	/* code */
+	int i, j, k;
+	string path;
+	for(i = vars.n_files_start; i <= vars.n_files_end; i+=vars.step) {
+        for (j = 0; j < vars.m_batches; j++) {
+            for(k = 0; k < i; k++) {
+                path = vars.path + "/" + to_string(i) + "/" + to_string(j) + "/" + to_string(k);
+                cout << path << endl;
+				encrypt(path, path+"_key", path+"_cipher");
+            }
+        }
+    }
+	
 	return 0;
 }
+
+/*
+	byte message[] = {0x32, 0x43, 0xf6, 0xa8, 0x88, 0x5a, 0x30, 0x8d, 0x31, 0x31, 0x98, 0xa2, 0xe0, 0x37, 0x07, 0x34};
+	byte key[] = {0x2b, 0x7e, 0x15, 0x16, 0x28, 0xae, 0xd2, 0xa6, 0xab, 0xf7, 0x15, 0x88, 0x09, 0xcf, 0x4f, 0x3c};
+*/
+
+/*
+	path = vars.path + "/" + to_string(100) + "/" + to_string(0) + "/" + to_string(0);
+	cout << path << endl;
+	encrypt(path, path+"_key", path+"_cipher");
+*/
