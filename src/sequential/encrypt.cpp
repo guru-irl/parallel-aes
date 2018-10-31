@@ -7,7 +7,7 @@
 #include <stdlib.h>
 #include <fstream>
 
-#include "../include/aeslib.hpp"
+#include "../include/aeslib.h"
 #include "../include/genlib.hpp"
 
 using namespace std;

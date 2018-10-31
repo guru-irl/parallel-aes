@@ -5,7 +5,7 @@
 #include <cuda.h>
 #include <vector>
 
-#include "../include/aeslib.hpp"
+#include "../include/aeslib.h"
 #include "../include/genlib.hpp"
 #include "../include/parallelcore.cuh"
 
