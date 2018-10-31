@@ -100,7 +100,7 @@ void generate(opts vars) {
 
 int main(int argc, char const *argv[])
 {
-    opts vars;
+    opts vars = get_defaults();
     
     /*
     vars.path = argv[1];
@@ -110,13 +110,13 @@ int main(int argc, char const *argv[])
     vars.m_batches = stoi(argv[5]);
     */  
     
-    vars.path = "../dataset";
+    /*vars.path = "../dataset";
     vars.n_files_start = 100;
     vars.n_files_end = 1000;
     vars.step = 100;
     vars.m_batches = 1;
     vars.minlength = 1024; //bytes
-    vars.maxlength = 1024*32; //bytes
+    vars.maxlength = 1024*32; //bytes*/
 
     srand(time(NULL));
 
