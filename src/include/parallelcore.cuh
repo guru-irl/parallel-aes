@@ -4,6 +4,10 @@
 #include <cuda.h>
 #include "../include/aeslib.hpp"
 
+// This needs to be calculated properly using the formulae in the paper. 
+// Using a placeholder value for now.
+#define BLOCKSIZE 256 
+
 using namespace std;
 
 void load_boxes(byte *d_sbox, byte *d_mul2, byte *d_mul3) {
@@ -110,12 +114,7 @@ __global__ void Cipher(byte *message, int msg_length, byte expandedKey[176], byt
     int id = (blockDim.x + blockIdx.x + threadIdx.x) * 16;
     
     if((id + 16) < msg_length) {
-
-        #pragma unroll
-        for(int i = 0; i < 16; i++) {
-    		cipher[id + i] = message[id + i];
-	    }
-
+        #pragma unrolls
 	    AddRoundKey(cipher + id, d_expandedKey);
 		for(int n = 1; n <= N_ROUNDS; n++) {
 			Round(cipher + id, d_expandedKey + (n)*16, n == 10);

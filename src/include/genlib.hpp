@@ -21,8 +21,8 @@ opts get_defaults(){
     default_vars.n_files_end = 1000;
     default_vars.step = 100;
     default_vars.m_batches = 1;
-    default_vars.minlength = 1024; //bytes
-    default_vars.maxlength = 1024*32; //bytes
+    default_vars.minlength = 1024*32; //bytes
+    default_vars.maxlength = 1024*128; //bytes
 
     return default_vars;
 }
