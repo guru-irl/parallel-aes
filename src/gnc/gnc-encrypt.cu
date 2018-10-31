@@ -64,32 +64,33 @@ void GNC(vector<byte *> &uData, vector<int> &uLens vector<byte *> &uKeys, vector
     // The following variables are stored in global memory
     // They will be further copied to shared memory in the kernel
     // The idea being to reduce memory latency 
-    byte* d_sbox;
-    byte* d_mul2;
-    byte* d_mul3;
+    byte *d_sbox;
+    byte *d_mul2;
+    byte *d_mul3;
     load_boxes(d_sbox, d_mul2, d_mul3);
 
     int n;
     byte expandedKey[176];
-    byte* d_expandedKey;
+    byte *d_expandedKey;
     cudaMalloc((void**) &d_expandedKey, 176);
 
-    byte *message;
+    byte *d_message;
+    byte *d_cipher;
     byte *cipher;
-
     for(int i = 0; i < uData.length(); i++) {
         n = uLens[i];
-        byte message[n];
-        byte cipher[n];
         
-
+        cudaMalloc((void**) d_message, n);
+        cudaMalloc((void**) d_cipher, n);
 
         KeyExpansion(key, expandedKey);
         cudaMemcpy(d_expandedKey, expandedKey, 176, cudaMemcpyHostToDevice);
-
-	    Cipher(message, n, expandedKey, cipher);
+        cudaMemcpy(d_message, uData[i], n, cudaMemcpyHostToDevice);
+        cudaMemcpy(d_cipher, uData[i], n, cudaMemcpyHostToDevice);
+        
+        Cipher <<n/(BLOCKSIZE*16), BLOCKSIZE>> (d_message, n, d_expandedKey, d_cipher, d_sbox, d_mul2, d_mul3);
+        
+        cudaMemcpy(cipher, d_cipher, n, cudaMemcpyDeviceToHost);
     }
-	// cout << "MSG\n" << hex(message, n) << endl << endl; 
-	// cout << "Cry\n" << hex(cipher, n) << endl << endl;	
 }
 
