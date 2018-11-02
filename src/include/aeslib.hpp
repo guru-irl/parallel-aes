@@ -1,5 +1,7 @@
 #ifndef AESLIB_H
 #define AESLIB_H
+#include <string>
+
 typedef unsigned char byte;
 
 #define N_ROUNDS 10
@@ -222,6 +224,23 @@ void KeyExpansion(byte inputKey[16], byte expandedKeys[176]) {
 			bytesGenerated++;
 		}
 	}
+}
+
+/*******************************************************************
+* Pretty Printing Hex Values
+********************************************************************/
+byte hexmap[] = {'0', '1', '2', '3', '4', '5', '6', '7',
+                '8', '9', 'a', 'b', 'c', 'd', 'e', 'f'};
+
+std::string hex(byte *data, int len)
+{
+  	std::string s(len * 3, ' ');
+  	for (int i = 0; i < len; ++i) {
+	    s[3 * i]     = hexmap[(data[i] & 0xF0) >> 4];
+	    s[3 * i + 1] = hexmap[data[i] & 0x0F];
+	    s[3 * i + 2] = ' ';
+  	}
+  	return s;
 }
 
 #endif
