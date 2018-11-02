@@ -46,7 +46,7 @@ void check_make_dir(string path) {
 
 void generate_file(string path, int n_bytes) {
     ofstream fout;
-    fout.open(path);
+    fout.open(path, ios::binary);
 
     if(fout.is_open()){
         int i;
@@ -62,7 +62,7 @@ void generate_file(string path, int n_bytes) {
         exit(1);
     }
 
-    fout.open(path + "_key");
+    fout.open(path + "_key", ios::binary);
     if(fout.is_open()){
         int i;
         byte b;
