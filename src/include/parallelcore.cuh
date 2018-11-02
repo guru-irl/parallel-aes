@@ -2,23 +2,24 @@
 #define PARALLELCORE_H
 
 #include <cuda.h>
+#include <iostream>
 #include "../include/aeslib.hpp"
 
 // This needs to be calculated properly using the formulae in the paper. 
 // Using a placeholder value for now.
-#define BLOCKSIZE 256 
+#define BLOCKSIZE 1024 
+
+#define gpuErrchk(ans) { gpuAssert((ans), __FILE__, __LINE__); }
+inline void gpuAssert(cudaError_t code, const char *file, int line, bool abort=true)
+{
+   if (code != cudaSuccess) 
+   {
+      fprintf(stderr,"GPUassert: %s %s %d\n", cudaGetErrorString(code), file, line);
+      if (abort) exit(code);
+   }
+}
 
 using namespace std;
-
-void load_boxes(byte *d_sbox, byte *d_mul2, byte *d_mul3) {
-    cudaMalloc((void **) &d_sbox, 256);
-    cudaMalloc((void **) &d_mul2, 256);
-    cudaMalloc((void **) &d_mul3, 256);
-
-    cudaMemcpy(d_sbox, sbox, 256, cudaMemcpyHostToDevice);
-    cudaMemcpy(d_mul2, mul2, 256, cudaMemcpyHostToDevice);
-    cudaMemcpy(d_mul3, mul3, 256, cudaMemcpyHostToDevice);
-}
 
 __device__ void AddRoundKey(byte *state, byte *RoundKey) {
     #pragma unroll
@@ -95,12 +96,12 @@ __device__ void Round(byte *state, byte *RoundKey, byte *d_sbox, byte *d_mul2, b
 	AddRoundKey(state, RoundKey);
 }
 
-__global__ void Cipher(byte *message, int msg_length, byte expandedKey[176], byte *cipher, byte *sbox, byte *mul2, byte *mul3) {
+__global__ void Cipher(byte *message, int msg_length, byte expandedKey[176], byte *sbox, byte *mul2, byte *mul3) {
 
     __shared__ byte d_sbox[256];
     __shared__ byte d_mul2[256];
     __shared__ byte d_mul3[256];
-    __shared__ byte expandedKey[176];
+    __shared__ byte d_expandedKey[176];
 
     if(threadIdx.x == 0) {
         for(int i = 0; i < 256; i++) {
@@ -108,17 +109,20 @@ __global__ void Cipher(byte *message, int msg_length, byte expandedKey[176], byt
             d_mul2[i] = mul2[i];
             d_mul3[i] = mul3[i];
             if(i < 176) d_expandedKey[i] = expandedKey[i];
-        }
+		}
     }
 
-    int id = (blockDim.x + blockIdx.x + threadIdx.x) * 16;
-    
-    if((id + 16) < msg_length) {
-        #pragma unrolls
-	    AddRoundKey(cipher + id, d_expandedKey);
+	__syncthreads();
+	int id = (blockDim.x*blockIdx.x + threadIdx.x) * 16;
+	// printf("%d %d %d \n", blockDim.x, blockIdx.x, threadIdx.x);
+	// printf("Thread out %d \n", id/16);
+	
+    if((id + 16) <= msg_length) {
+		// printf("Thread %d \n", id/16);
+        AddRoundKey(message + id, d_expandedKey);
 		for(int n = 1; n <= N_ROUNDS; n++) {
-			Round(cipher + id, d_expandedKey + (n)*16, n == 10);
-    	}
+			Round(message + id, d_expandedKey + (n)*16, d_sbox, d_mul2, d_mul3, n == 10);
+		}
     }
 }
 

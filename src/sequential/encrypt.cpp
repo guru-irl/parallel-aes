@@ -7,27 +7,11 @@
 #include <stdlib.h>
 #include <fstream>
 
-#include "../include/aeslib.h"
+#include "../include/aeslib.hpp"
 #include "../include/genlib.hpp"
 
 using namespace std;
 
-/*******************************************************************
-* Pretty Printing Hex Values
-********************************************************************/
-byte hexmap[] = {'0', '1', '2', '3', '4', '5', '6', '7',
-                '8', '9', 'a', 'b', 'c', 'd', 'e', 'f'};
-
-string hex(byte *data, int len)
-{
-  	std::string s(len * 3, ' ');
-  	for (int i = 0; i < len; ++i) {
-	    s[3 * i]     = hexmap[(data[i] & 0xF0) >> 4];
-	    s[3 * i + 1] = hexmap[data[i] & 0x0F];
-	    s[3 * i + 2] = ' ';
-  	}
-  	return s;
-}
 
 /********************************************************************
 * AES Implementation
@@ -48,26 +32,26 @@ void SubBytes(byte *state) {
 }
 
 void ShiftRows(byte *state) {
-    byte j;
+    byte tmp;
 
-	j = state[1];
+	tmp = state[1];
 	state[1] = state[5];
 	state[5] = state[9];
 	state[9] = state[13];
-	state[13] = j;
+	state[13] = tmp;
 
-	j = state[2];
+	tmp = state[2];
 	state[2] = state[10];
-	state[10] = j;
-	j = state[6];
+	state[10] = tmp;
+	tmp = state[6];
 	state[6] = state[14];
-	state[14] = j;
+	state[14] = tmp;
 
-	j = state[15];
+	tmp = state[15];
 	state[15] = state[11];
 	state[11] = state[7];
 	state[7] = state[3];
-	state[3] = j;
+	state[3] = tmp;
 }
 
 void MixColumns(byte *state) {
@@ -119,9 +103,9 @@ void Cipher(byte *message, int msg_length, byte expandedKey[176], byte *cipher) 
 }
 
 void encrypt(string msg_path, string key_path, string out_path) {
-	ifstream f_msg(msg_path);
-	ifstream f_key(key_path);
-	ofstream fout(out_path);
+	ifstream f_msg(msg_path, ios::binary);
+	ifstream f_key(key_path, ios::binary);
+	ofstream fout(out_path, ios::binary);
 
 	if(f_msg && f_key) {
 
@@ -144,8 +128,10 @@ void encrypt(string msg_path, string key_path, string out_path) {
 		Cipher(message, n, expandedKey, cipher);
 		fout.write(reinterpret_cast<char *> (cipher), n);
 
-		// cout << "MSG\n" << hex(message, n) << endl << endl; 
-		// cout << "Cry\n" << hex(cipher, n) << endl << endl;	
+		/*if(msg_path ==  "../dataset/100/0/0") {
+			cout << hex(message, n) << endl << endl; 
+			cout << hex(cipher, n) << endl << endl;
+		}*/	
 	}
 }
 
@@ -159,8 +145,8 @@ int main(int argc, char const *argv[])
         for (j = 0; j < vars.m_batches; j++) {
             for(k = 0; k < i; k++) {
                 path = vars.path + "/" + to_string(i) + "/" + to_string(j) + "/" + to_string(k);
-                cout << path << endl;
-				encrypt(path, path+"_key", path+"_cipher");
+                // cout << path << endl;
+				encrypt(path, path+"_key", path+"_cipher_seq");
             }
         }
     }
@@ -168,12 +154,17 @@ int main(int argc, char const *argv[])
 }
 
 /*
-	byte message[] = {0x32, 0x43, 0xf6, 0xa8, 0x88, 0x5a, 0x30, 0x8d, 0x31, 0x31, 0x98, 0xa2, 0xe0, 0x37, 0x07, 0x34};
-	byte key[] = {0x2b, 0x7e, 0x15, 0x16, 0x28, 0xae, 0xd2, 0xa6, 0xab, 0xf7, 0x15, 0x88, 0x09, 0xcf, 0x4f, 0x3c};
-*/
+	// VERIFICATION ANALYSIS
 
-/*
-	path = vars.path + "/" + to_string(100) + "/" + to_string(0) + "/" + to_string(0);
-	cout << path << endl;
-	encrypt(path, path+"_key", path+"_cipher");
+	byte expandedKey[176];
+
+	byte message[] = {0x32, 0x43, 0xf6, 0xa8, 0x88, 0x5a, 0x30, 0x8d, 0x31, 0x31, 0x98, 0xa2, 0xe0, 0x37, 0x07, 0x34, 0x32, 0x43, 0xf6, 0xa8, 0x88, 0x5a, 0x30, 0x8d, 0x31, 0x31, 0x98, 0xa2, 0xe0, 0x37, 0x07, 0x34, 0x32, 0x43, 0xf6, 0xa8, 0x88, 0x5a, 0x30, 0x8d, 0x31, 0x31, 0x98, 0xa2, 0xe0, 0x37, 0x07, 0x34};
+	byte key[] = {0x2b, 0x7e, 0x15, 0x16, 0x28, 0xae, 0xd2, 0xa6, 0xab, 0xf7, 0x15, 0x88, 0x09, 0xcf, 0x4f, 0x3c};
+	byte cipher[48];
+
+	int n = 48;
+	KeyExpansion(key, expandedKey);
+	Cipher(message, n, expandedKey, cipher);
+	
+	cout << hex(cipher, n);
 */

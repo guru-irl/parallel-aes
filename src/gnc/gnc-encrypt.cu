@@ -5,11 +5,67 @@
 #include <cuda.h>
 #include <vector>
 
-#include "../include/aeslib.h"
+#include "../include/aeslib.hpp"
 #include "../include/genlib.hpp"
 #include "../include/parallelcore.cuh"
 
 using namespace std;
+
+void GNC(vector<byte *> &uData, vector<int> &uLens, vector<byte *> &uKeys, vector<byte *> &ciphers) {
+    
+    // The published algorithm copies the ciphers back to uData
+    // But I'm gonna put them in a separate array in case I need the raw user data for something.
+
+    // The following variables are stored in global memory
+    // They will be further copied to shared memory in the kernel
+    // The idea being to reduce memory latency 
+    byte *d_sbox;
+    byte *d_mul2;
+    byte *d_mul3;
+
+    gpuErrchk(cudaMalloc((void **) &d_sbox, 256));
+    gpuErrchk(cudaMalloc((void **) &d_mul2, 256));
+    gpuErrchk(cudaMalloc((void **) &d_mul3, 256));
+
+    gpuErrchk(cudaMemcpy(d_sbox, sbox, 256, cudaMemcpyHostToDevice));
+    gpuErrchk(cudaMemcpy(d_mul2, mul2, 256, cudaMemcpyHostToDevice));
+    gpuErrchk(cudaMemcpy(d_mul3, mul3, 256, cudaMemcpyHostToDevice));
+
+
+    int n;
+    byte expandedKey[176];
+    byte *d_expandedKey;
+    gpuErrchk(cudaMalloc((void**) &d_expandedKey, 176));
+
+    int gridsize, blocksize;
+    for(int i = 0; i < uData.size(); i++) {
+        n = uLens[i];
+        byte *d_message;
+        byte *cipher = new byte[n];
+        gpuErrchk(cudaMalloc((void**) &d_message, n));
+        
+        KeyExpansion(uKeys[i], expandedKey);
+        gpuErrchk(cudaMemcpy(d_expandedKey, expandedKey, 176, cudaMemcpyHostToDevice));
+        gpuErrchk(cudaMemcpy(d_message, uData[i], n, cudaMemcpyHostToDevice));
+        
+        blocksize = BLOCKSIZE;
+        gridsize = ceil (uLens[i]/(BLOCKSIZE*16));
+        
+        if(uLens[i] <= BLOCKSIZE) gridsize = 1;
+
+        Cipher <<< gridsize, blocksize>>> (d_message, n, d_expandedKey, d_sbox, d_mul2, d_mul3);
+        gpuErrchk(cudaPeekAtLastError());
+        gpuErrchk(cudaMemcpy(cipher, d_message, n, cudaMemcpyDeviceToHost));
+        ciphers.push_back(move(cipher));
+
+        gpuErrchk(cudaFree(d_message));
+    }
+    
+    // cout << endl << endl;
+    // cout << hex(uData[0], uLens[0]);
+    // cout << endl << endl << endl << endl;
+    // cout << hex(ciphers[0], uLens[0]);
+}
 
 void get_data(opts vars, vector<byte*> &msgs, vector<int> &lens, vector<byte*> &keys, int i, int j) {
 
@@ -21,30 +77,31 @@ void get_data(opts vars, vector<byte*> &msgs, vector<int> &lens, vector<byte*> &
 	string msg_path, key_path;
     ifstream f_msg, f_key;
 
+    int k, n;
     for(k = 0; k < i; k++) {
         msg_path = vars.path + "/" + to_string(i) + "/" + to_string(j) + "/" + to_string(k);
-        key_path = path+"_key";
+        key_path = msg_path+"_key";
 
-        cout << msg_path << " ";
-        f_msg.open(msg_path);
-        f_key.open(key_path);
+        f_msg.open(msg_path, ios::binary);
+        f_key.open(key_path, ios::binary);
 
 	    if(f_msg && f_key) {
 
 		    f_msg.seekg(0, f_msg.end);
 	        n = f_msg.tellg();
-            cout << n << endl;
     		f_msg.seekg(0, f_msg.beg);
 
-            byte message[n];
-		    byte key[16];
+            byte *message = new byte[n];
+		    byte *key = new byte[16];
 
-            f_msg.read(reinterpret_cast<char *> (message), n);
-		    f_key.read(reinterpret_cast<char *> (key), 16);
+            f_msg.read( reinterpret_cast<char *> (message), n);
+		    f_key.read( reinterpret_cast<char *> (key), 16);
 
-            msgs.push_back(message);
+            // if(k == 0) cout << endl << endl << hex(message, n) << endl << endl;
+
+            msgs.push_back(move(message));
             lens.push_back(n);
-            keys.push_back(key);
+            keys.push_back(move(key));
 
             f_msg.close();
             f_key.close();
@@ -53,44 +110,73 @@ void get_data(opts vars, vector<byte*> &msgs, vector<int> &lens, vector<byte*> &
             cout << "read failed";
         }
     }
+
+    // cout << msgs.size() << endl;
+    // cout << hex(keys[i-1], 16) << endl;
+    // cout << hex(msgs[0], lens[0]) << endl;
 }
 
-void GNC(vector<byte *> &uData, vector<int> &uLens vector<byte *> &uKeys, vector<byte *> &ciphers) {
-    
-    // The published algorithm copies the ciphers back to uData
-    // But I'm gonna put them in a separate array in case I need the raw user data for something.
 
-    
-    // The following variables are stored in global memory
-    // They will be further copied to shared memory in the kernel
-    // The idea being to reduce memory latency 
+int main() {
+    opts vars = get_defaults();
+
+    int i, j;
+    for(i = vars.n_files_start; i <= vars.n_files_end; i += vars.step) {
+        for(j = 0; j < vars.m_batches; j++) {
+            vector<byte*> uData;
+            vector<int> uLens;
+            vector<byte*> uKeys;
+
+            get_data(vars, uData, uLens, uKeys, i, j);
+            vector<byte*> ciphers;
+            GNC(uData, uLens, uKeys, ciphers);
+
+            string out_path;
+            ofstream fout;
+            for(int k = 0; k < i; k++) {
+                out_path = vars.path + "/" + to_string(i) + "/" + to_string(j) + "/" + to_string(k) + "_cipher_gnc";
+                fout.open(out_path, ios::binary);
+                fout.write(reinterpret_cast<char *> (ciphers[k]), uLens[k]);
+                fout.close();
+            }
+        }
+    }
+
+    return 0;
+}
+
+/*
+    // VERIFICATION ANALYSIS
     byte *d_sbox;
     byte *d_mul2;
     byte *d_mul3;
-    load_boxes(d_sbox, d_mul2, d_mul3);
-
-    int n;
+    cudaMalloc((void **) &d_sbox, 256);
+    cudaMalloc((void **) &d_mul2, 256);
+    cudaMalloc((void **) &d_mul3, 256);
+    
+    cudaMemcpy(d_sbox, sbox, 256, cudaMemcpyHostToDevice);
+    cudaMemcpy(d_mul2, mul2, 256, cudaMemcpyHostToDevice);
+    cudaMemcpy(d_mul3, mul3, 256, cudaMemcpyHostToDevice);
+    
+    byte message[] = {0x32, 0x43, 0xf6, 0xa8, 0x88, 0x5a, 0x30, 0x8d, 0x31, 0x31, 0x98, 0xa2, 0xe0, 0x37, 0x07, 0x34, 0x32, 0x43, 0xf6, 0xa8, 0x88, 0x5a, 0x30, 0x8d, 0x31, 0x31, 0x98, 0xa2, 0xe0, 0x37, 0x07, 0x34, 0x32, 0x43, 0xf6, 0xa8, 0x88, 0x5a, 0x30, 0x8d, 0x31, 0x31, 0x98, 0xa2, 0xe0, 0x37, 0x07, 0x34};
+    byte key[] = {0x2b, 0x7e, 0x15, 0x16, 0x28, 0xae, 0xd2, 0xa6, 0xab, 0xf7, 0x15, 0x88, 0x09, 0xcf, 0x4f, 0x3c};
     byte expandedKey[176];
-    byte *d_expandedKey;
+    byte cipher[48];
+    byte* d_message;
+    byte* d_expandedKey;
+    // byte* d_cipher;
+    int n = 48;
+            
+    // byte cipher[n];
+    cudaMalloc((void**) &d_message, n);
+    // cudaMalloc((void**) &d_cipher, n);
     cudaMalloc((void**) &d_expandedKey, 176);
+    
+    KeyExpansion(key, expandedKey);
+    cudaMemcpy(d_expandedKey, expandedKey, 176, cudaMemcpyHostToDevice);
+    cudaMemcpy(d_message, message, n, cudaMemcpyHostToDevice);
+    Cipher <<<1, 256>>> (d_message, n, d_expandedKey, d_sbox, d_mul2, d_mul3);
 
-    byte *d_message;
-    byte *d_cipher;
-    byte *cipher;
-    for(int i = 0; i < uData.length(); i++) {
-        n = uLens[i];
-        
-        cudaMalloc((void**) d_message, n);
-        cudaMalloc((void**) d_cipher, n);
-
-        KeyExpansion(key, expandedKey);
-        cudaMemcpy(d_expandedKey, expandedKey, 176, cudaMemcpyHostToDevice);
-        cudaMemcpy(d_message, uData[i], n, cudaMemcpyHostToDevice);
-        cudaMemcpy(d_cipher, uData[i], n, cudaMemcpyHostToDevice);
-        
-        Cipher <<n/(BLOCKSIZE*16), BLOCKSIZE>> (d_message, n, d_expandedKey, d_cipher, d_sbox, d_mul2, d_mul3);
-        
-        cudaMemcpy(cipher, d_cipher, n, cudaMemcpyDeviceToHost);
-    }
-}
-
+    cudaMemcpy(cipher, d_message, n, cudaMemcpyDeviceToHost);
+    cout << hex(cipher, 48) << endl;  
+*/
