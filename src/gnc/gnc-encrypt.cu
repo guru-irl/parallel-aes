@@ -4,6 +4,7 @@
 #include <fstream>
 #include <cuda.h>
 #include <vector>
+#include <ctime>
 
 #include "../include/aeslib.hpp"
 #include "../include/genlib.hpp"
@@ -119,17 +120,29 @@ void get_data(opts vars, vector<byte*> &msgs, vector<int> &lens, vector<byte*> &
 
 int main() {
     opts vars = get_defaults();
-
+	clock_t start, end;
     int i, j;
     for(i = vars.n_files_start; i <= vars.n_files_end; i += vars.step) {
+        
+        long long isum = 0;
         for(j = 0; j < vars.m_batches; j++) {
+            vector<long> batchtimes;
+			long sum = 0;
+            
             vector<byte*> uData;
             vector<int> uLens;
             vector<byte*> uKeys;
 
             get_data(vars, uData, uLens, uKeys, i, j);
             vector<byte*> ciphers;
+            
+            start = clock();
             GNC(uData, uLens, uKeys, ciphers);
+            end = clock();
+            batchtimes.push_back((end-start));
+			sum += (end-start);
+			printf("\n N_FILES: %5d | BATCH: %2d | TIME: %10.4lf ms", i, j, ((double)sum * 100)/CLOCKS_PER_SEC);
+			isum += sum;
 
             string out_path;
             ofstream fout;
@@ -138,8 +151,11 @@ int main() {
                 fout.open(out_path, ios::binary);
                 fout.write(reinterpret_cast<char *> (ciphers[k]), uLens[k]);
                 fout.close();
+                // free(uData[i]);
+                // free(uKeys[i]);
             }
         }
+		printf("\n N_FILES: %5d | AVG_TIME: %10.4lf ms\n", i, (((double)isum * 100)/vars.m_batches)/CLOCKS_PER_SEC);
     }
 
     return 0;
