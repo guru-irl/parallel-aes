@@ -6,6 +6,10 @@
 #include <string>
 #include <stdlib.h>
 #include <fstream>
+#include <ctime>
+#include <vector>
+#include <iomanip>
+#include <stdio.h>
 
 #include "../include/aeslib.hpp"
 #include "../include/genlib.hpp"
@@ -111,7 +115,7 @@ void encrypt(string msg_path, string key_path, string out_path) {
 
 		f_msg.seekg(0, f_msg.end);
 		int n = f_msg.tellg();
-		cout << n;
+		// cout << n;
 		f_msg.seekg(0, f_msg.beg);
 
 		byte message[n];
@@ -140,15 +144,31 @@ int main(int argc, char const *argv[])
 	opts vars = get_defaults();
 
 	int i, j, k;
+	clock_t start, end;
 	string path;
 	for(i = vars.n_files_start; i <= vars.n_files_end; i+=vars.step) {
-        for (j = 0; j < vars.m_batches; j++) {
+        long long isum = 0;
+		for (j = 0; j < vars.m_batches; j++) {
+			vector<long> batchtimes;
+			long sum = 0;
             for(k = 0; k < i; k++) {
+				start = clock();
                 path = vars.path + "/" + to_string(i) + "/" + to_string(j) + "/" + to_string(k);
                 // cout << path << endl;
 				encrypt(path, path+"_key", path+"_cipher_seq");
+				end = clock();
+				batchtimes.push_back((long) (end-start));
+				sum += (long)(end-start);
             }
+			// cout << "\nN_FILES: " << i << " BATCH#: " << j << " Time: " << fixed << setprecision(2) << sum;
+			printf("\n N_FILES: %5d | BATCH: %2d | TIME: %10.4lf ms", i, j, ((double)sum * 100)/CLOCKS_PER_SEC);
+			//printf("\n N_FILES: %5d | BATCH: %2d | CLOCK_CYCLES: %15ld ", i, j, sum);
+			isum += sum;
         }
+		// cout << fixed << setprecision(2) << "\nN_FILES: " << i << " Avg: " << isum/vars.m_batches << endl;
+		//printf("\n N_FILES: %5d | AVG_CLOCKS: %19.4f \n", i, ((double)isum)/vars.m_batches);
+		printf("\n N_FILES: %5d | AVG_TIME: %10.4lf ms\n", i, (((double)isum * 100)/vars.m_batches)/CLOCKS_PER_SEC);
+
     }
 	return 0;
 }
