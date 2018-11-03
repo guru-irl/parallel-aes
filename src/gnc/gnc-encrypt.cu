@@ -37,7 +37,7 @@ void GNC(vector<byte *> &uData, vector<int> &uLens, vector<byte *> &uKeys, vecto
     byte expandedKey[176];
     byte *d_expandedKey;
     gpuErrchk(cudaMalloc((void**) &d_expandedKey, 176));
-
+    
     int gridsize, blocksize;
     for(int i = 0; i < uData.size(); i++) {
         n = uLens[i];
