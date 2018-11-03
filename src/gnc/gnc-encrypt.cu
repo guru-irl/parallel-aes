@@ -151,8 +151,10 @@ int main() {
                 fout.open(out_path, ios::binary);
                 fout.write(reinterpret_cast<char *> (ciphers[k]), uLens[k]);
                 fout.close();
-                // free(uData[i]);
-                // free(uKeys[i]);
+                // free(uData[k]);
+                // free(uKeys[k]);
+                delete[] uData[k];
+                delete[] uKeys[k];
             }
         }
 		printf("\n N_FILES: %5d | AVG_TIME: %10.4lf ms\n", i, (((double)isum * 100)/vars.m_batches)/CLOCKS_PER_SEC);
