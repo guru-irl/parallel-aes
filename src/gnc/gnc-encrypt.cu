@@ -24,30 +24,30 @@ void GNC(vector<byte *> &uData, vector<int> &uLens, vector<byte *> &uKeys, vecto
     byte *d_mul2;
     byte *d_mul3;
 
-    gpuErrchk(cudaMalloc((void **) &d_sbox, 256));
-    gpuErrchk(cudaMalloc((void **) &d_mul2, 256));
-    gpuErrchk(cudaMalloc((void **) &d_mul3, 256));
+    CUDA_ERR_CHK(cudaMalloc((void **) &d_sbox, 256));
+    CUDA_ERR_CHK(cudaMalloc((void **) &d_mul2, 256));
+    CUDA_ERR_CHK(cudaMalloc((void **) &d_mul3, 256));
 
-    gpuErrchk(cudaMemcpy(d_sbox, sbox, 256, cudaMemcpyHostToDevice));
-    gpuErrchk(cudaMemcpy(d_mul2, mul2, 256, cudaMemcpyHostToDevice));
-    gpuErrchk(cudaMemcpy(d_mul3, mul3, 256, cudaMemcpyHostToDevice));
+    CUDA_ERR_CHK(cudaMemcpy(d_sbox, sbox, 256, cudaMemcpyHostToDevice));
+    CUDA_ERR_CHK(cudaMemcpy(d_mul2, mul2, 256, cudaMemcpyHostToDevice));
+    CUDA_ERR_CHK(cudaMemcpy(d_mul3, mul3, 256, cudaMemcpyHostToDevice));
 
 
     int n;
     byte expandedKey[176];
     byte *d_expandedKey;
-    gpuErrchk(cudaMalloc((void**) &d_expandedKey, 176));
+    CUDA_ERR_CHK(cudaMalloc((void**) &d_expandedKey, 176));
 
     int gridsize, blocksize;
     for(int i = 0; i < uData.size(); i++) {
         n = uLens[i];
         byte *d_message;
         byte *cipher = new byte[n];
-        gpuErrchk(cudaMalloc((void**) &d_message, n));
+        CUDA_ERR_CHK(cudaMalloc((void**) &d_message, n));
         
         KeyExpansion(uKeys[i], expandedKey);
-        gpuErrchk(cudaMemcpy(d_expandedKey, expandedKey, 176, cudaMemcpyHostToDevice));
-        gpuErrchk(cudaMemcpy(d_message, uData[i], n, cudaMemcpyHostToDevice));
+        CUDA_ERR_CHK(cudaMemcpy(d_expandedKey, expandedKey, 176, cudaMemcpyHostToDevice));
+        CUDA_ERR_CHK(cudaMemcpy(d_message, uData[i], n, cudaMemcpyHostToDevice));
         
         blocksize = BLOCKSIZE;
         gridsize = ceil (uLens[i]/(BLOCKSIZE*16));
@@ -55,17 +55,12 @@ void GNC(vector<byte *> &uData, vector<int> &uLens, vector<byte *> &uKeys, vecto
         if(uLens[i] <= BLOCKSIZE) gridsize = 1;
 
         GNC_Cipher <<< gridsize, blocksize>>> (d_message, n, d_expandedKey, d_sbox, d_mul2, d_mul3);
-        gpuErrchk(cudaPeekAtLastError());
-        gpuErrchk(cudaMemcpy(cipher, d_message, n, cudaMemcpyDeviceToHost));
+        CUDA_ERR_CHK(cudaPeekAtLastError());
+        CUDA_ERR_CHK(cudaMemcpy(cipher, d_message, n, cudaMemcpyDeviceToHost));
         ciphers.push_back(move(cipher));
 
-        gpuErrchk(cudaFree(d_message));
+        CUDA_ERR_CHK(cudaFree(d_message));
     }
-    
-    // cout << endl << endl;
-    // cout << hex(uData[0], uLens[0]);
-    // cout << endl << endl << endl << endl;
-    // cout << hex(ciphers[0], uLens[0]);
 }
 
 void get_data(opts vars, vector<byte*> &msgs, vector<int> &lens, vector<byte*> &keys, int i, int j) {
@@ -135,7 +130,7 @@ int main() {
 
             get_data(vars, uData, uLens, uKeys, i, j);
             vector<byte*> ciphers;
-            
+            ciphers.reserve(i);
             start = clock();
             GNC(uData, uLens, uKeys, ciphers);
             end = clock();
