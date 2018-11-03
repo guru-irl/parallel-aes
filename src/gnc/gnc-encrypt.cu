@@ -54,7 +54,7 @@ void GNC(vector<byte *> &uData, vector<int> &uLens, vector<byte *> &uKeys, vecto
         
         if(uLens[i] <= BLOCKSIZE) gridsize = 1;
 
-        Cipher <<< gridsize, blocksize>>> (d_message, n, d_expandedKey, d_sbox, d_mul2, d_mul3);
+        GNC_Cipher <<< gridsize, blocksize>>> (d_message, n, d_expandedKey, d_sbox, d_mul2, d_mul3);
         gpuErrchk(cudaPeekAtLastError());
         gpuErrchk(cudaMemcpy(cipher, d_message, n, cudaMemcpyDeviceToHost));
         ciphers.push_back(move(cipher));

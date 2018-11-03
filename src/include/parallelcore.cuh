@@ -96,7 +96,7 @@ __device__ void Round(byte *state, byte *RoundKey, byte *d_sbox, byte *d_mul2, b
 	AddRoundKey(state, RoundKey);
 }
 
-__global__ void Cipher(byte *message, int msg_length, byte expandedKey[176], byte *sbox, byte *mul2, byte *mul3) {
+__global__ void GNC_Cipher(byte *message, int msg_length, byte expandedKey[176], byte *sbox, byte *mul2, byte *mul3) {
 
     __shared__ byte d_sbox[256];
     __shared__ byte d_mul2[256];
