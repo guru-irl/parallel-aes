@@ -32,6 +32,33 @@ void CNC(vector<byte *> &uData, vector<int> &uLens, vector<byte *> &uKeys, vecto
             I can run this command : cat /proc/cpuinfo | grep processor | wc -l , to get the max number of threads in a PC
         */
 
+       omp_set_num_threads(4);
+       #pragma omp parallel for
+       for(int j = 1 ; j <= 4 ; ++j){
+   
+           for(int curr_index = ((uLens[i]/4)*(j-1)); curr_index< ((uLens[i]/4)*j) ; curr_index+=16){
+
+               if(curr_index >= uLens[i])   
+                    break;
+            
+               cout <<  j << endl;
+               AddRoundKey(uData[i] + curr_index , expandedKey);
+               for(int n_rounds = 1 ; n_rounds<=10 ; ++n_rounds)
+                    Round(uData[i] + curr_index, expandedKey + (n_rounds*16), (n_rounds==10));
+           }
+       }
+
+        /*
+       for(int curr_index = 0; curr_index<uLens[i] ; curr_index+=16){
+
+            AddRoundKey(uData[i] + curr_index , expandedKey);
+
+            for(int n_rounds = 1 ; n_rounds<=10 ; ++n_rounds)
+                Round(uData[i] + curr_index, expandedKey + (n_rounds*16), (n_rounds==10));
+        }
+        */
+
+       /*
         int WORK_THREADS = 4, curr_index;
         omp_set_num_threads(WORK_THREADS); 
 
@@ -46,6 +73,7 @@ void CNC(vector<byte *> &uData, vector<int> &uLens, vector<byte *> &uKeys, vecto
                     Round(uData[i] + curr_index, expandedKey + (n_rounds*16), (n_rounds==10));
             }
         }
+        */
 
         cipher = uData[i];
         ciphers.push_back(move(cipher));
