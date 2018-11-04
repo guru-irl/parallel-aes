@@ -77,13 +77,12 @@ void MixColumns(byte *state, byte* d_mul2, byte* d_mul3) {
 	}
 }
 
-void Round(byte *state, byte *RoundKey, byte *d_sbox, byte *d_mul2, byte *d_mul3, bool isFinal=false){
+void Round(byte *state, byte *RoundKey, /*byte *d_sbox, byte *d_mul2, byte *d_mul3,*/ bool isFinal=false){
     
-	SubBytes(state, d_sbox);
+	SubBytes(state, sbox);
 	ShiftRows(state);
-	if(!isFinal) MixColumns(state, d_mul2, d_mul3);
+	if(!isFinal) MixColumns(state, mul2, mul3);
 	AddRoundKey(state, RoundKey);
 }
-
 
 #endif
