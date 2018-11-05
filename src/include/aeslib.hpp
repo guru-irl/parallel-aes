@@ -1,7 +1,6 @@
 #ifndef AESLIB_H
 #define AESLIB_H
 #include <string>
-
 typedef unsigned char byte;
 
 #define N_ROUNDS 10
