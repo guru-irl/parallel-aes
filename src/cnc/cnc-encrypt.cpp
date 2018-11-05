@@ -5,6 +5,7 @@
 #include <vector>
 #include <ctime>
 #include <omp.h>
+#include <sys/time.h> 
 
 #include "../include/aeslib.hpp"
 #include "../include/genlib.hpp"
@@ -82,15 +83,14 @@ void get_data(opts vars, vector<byte*> &msgs, vector<int> &lens, vector<byte*> &
 
 int main() {
     opts vars = get_defaults();
-	clock_t start, end;
     int i, j;
     for(i = vars.n_files_start; i <= vars.n_files_end; i += vars.step) {
         
-        long long isum = 0;
+        double isum = 0;
         for(j = 0; j < vars.m_batches; j++) {
 
-            vector<long> batchtimes;
-			long sum = 0;
+            vector<double> batchtimes;
+			double sum = 0;
     
             vector<byte*> uData;
             vector<int> uLens;
@@ -99,11 +99,20 @@ int main() {
             get_data(vars, uData, uLens, uKeys, i, j);
             vector<byte*> ciphers;
             ciphers.reserve(i);
-            start = clock();
+
+            struct timeval start, end; 
+            gettimeofday(&start, NULL); 
+            ios_base::sync_with_stdio(false); 
             CNC(uData, uLens, uKeys, ciphers);
-            end = clock();
-            batchtimes.push_back((end-start));
-			sum += (end-start);
+            gettimeofday(&end, NULL); 
+
+            double time_taken; 
+  
+            time_taken = (end.tv_sec - start.tv_sec) * 1e6; 
+            time_taken = (time_taken + (end.tv_usec - start.tv_usec));
+
+            batchtimes.push_back((time_taken));
+			sum += (time_taken);
 			printf("\n N_FILES: %5d | BATCH: %2d | TIME: %10.4lf ms", i, j, ((double)sum * 100)/CLOCKS_PER_SEC);
 			isum += sum;
 
