@@ -13,11 +13,19 @@
 
 using namespace std;
 
-void CNC(vector<byte *> &uData, vector<int> &uLens, vector<byte *> &uKeys, vector<byte *> &ciphers){
+void CCNS(vector<byte *> &uData, vector<int> &uLens, vector<byte *> &uKeys, vector<byte *> &ciphers){
 
     int n;                      //variable to store the length of themessage in the loop
     byte expandedKey[176];      //expanded key variable, differs for every user key -> 44*4 = 176
 
+    //nested parallesim is being implemented
+    //enables nested parallelism
+    omp_set_nested(1);
+
+    //the total number of cores I have is 4
+    //hence the parallelism is split as 2*2 giving a total of threads 
+    omp_set_num_threads(2);
+    #pragma omp parallel for
     for(int i = 0; i < uData.size(); i++) {
 
         n = uLens[i];
@@ -25,8 +33,7 @@ void CNC(vector<byte *> &uData, vector<int> &uLens, vector<byte *> &uKeys, vecto
         
         KeyExpansion(uKeys[i], expandedKey);
         
-        omp_set_num_threads(4);
-
+        omp_set_num_threads(2);
         #pragma omp parallel for 
         for(int curr_index = 0 ; curr_index<uLens[i] ; curr_index+=16){
 
@@ -105,7 +112,7 @@ int main() {
             struct timeval start, end; 
             gettimeofday(&start, NULL); 
             ios_base::sync_with_stdio(false); 
-            CNC(uData, uLens, uKeys, ciphers);
+            CCNS(uData, uLens, uKeys, ciphers);
             gettimeofday(&end, NULL); 
 
             double time_taken; 
@@ -121,7 +128,7 @@ int main() {
             string out_path;
             ofstream fout;
             for(int k = 0; k < i; k++) {
-                out_path = vars.path + "/" + to_string(i) + "/" + to_string(j) + "/" + to_string(k) + "_cipher_cnc";
+                out_path = vars.path + "/" + to_string(i) + "/" + to_string(j) + "/" + to_string(k) + "_cipher_ccns";
                 fout.open(out_path, ios::binary);
                 fout.write(reinterpret_cast<char *> (ciphers[k]), uLens[k]);
                 fout.close();
@@ -135,67 +142,5 @@ int main() {
     return 0;
 }
 
-/*int main(){
 
-    vector<byte*> uData;
-    vector<int> uLens;
-    vector<byte*> uKeys;
-    vector<byte*> ciphers;
-
-    //get_data(vars, uData, uLens, uKeys, i, j);
-    CNC(uData, uLens, uKeys, ciphers);
-    
-
-    return 0;
-}*/
-
-/*
-    byte message[] = {0x32, 0x43, 0xf6, 0xa8, 0x88, 0x5a, 0x30, 0x8d, 0x31, 0x31, 0x98, 0xa2, 0xe0, 0x37, 0x07, 0x34, 0x32, 0x43, 0xf6, 0xa8, 0x88, 0x5a, 0x30, 0x8d, 0x31, 0x31, 0x98, 0xa2, 0xe0, 0x37, 0x07, 0x34, 0x32, 0x43, 0xf6, 0xa8, 0x88, 0x5a, 0x30, 0x8d, 0x31, 0x31, 0x98, 0xa2, 0xe0, 0x37, 0x07, 0x34};
-    byte key[] = {0x2b, 0x7e, 0x15, 0x16, 0x28, 0xae, 0xd2, 0xa6, 0xab, 0xf7, 0x15, 0x88, 0x09, 0xcf, 0x4f, 0x3c};
-
-    uData.push_back(move(message));
-    uLens.push_back(48);
-    uKeys.push_back(move(key));
-
-    cout << hex(ciphers[0], 48) << endl;
-*/
-/*
-    //omp_set_num_threads(4);
-    /*#pragma omp parallel for
-    for(int j = 1 ; j <= 4 ; ++j){
-        for(int curr_index = ((uLens[i]/4)*(j-1)); curr_index < ((uLens[i]/4)*j) ; curr_index+=16){
-
-               cout <<  j << endl;
-               AddRoundKey(uData[i] + curr_index , expandedKey);
-               for(int n_rounds = 1 ; n_rounds<=10 ; ++n_rounds)
-                    Round(uData[i] + curr_index, expandedKey + (n_rounds*16), (n_rounds==10));
-           }
-       }*/
-
-        /*
-       for(int curr_index = 0; curr_index<uLens[i] ; curr_index+=16){
-
-            AddRoundKey(uData[i] + curr_index , expandedKey);
-
-            for(int n_rounds = 1 ; n_rounds<=10 ; ++n_rounds)
-                Round(uData[i] + curr_index, expandedKey + (n_rounds*16), (n_rounds==10));
-        }
-        */
-
-       /*
-        int WORK_THREADS = 4, curr_index;
-        omp_set_num_threads(WORK_THREADS); 
-
-        #pragma omp parallel private(curr_index)
-        {
-            int tid = omp_get_thread_num();
-            for(curr_index = (uLens[i]/WORK_THREADS)*tid ; curr_index<(uLens[i]/WORK_THREADS)*(tid+1) ; curr_index+=16){
-
-                AddRoundKey(uData[i] + curr_index , expandedKey);
-
-                for(int n_rounds = 1 ; n_rounds<=10 ; ++n_rounds)
-                    Round(uData[i] + curr_index, expandedKey + (n_rounds*16), (n_rounds==10));
-            }
-        }
-*/
 
