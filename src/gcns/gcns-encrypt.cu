@@ -62,6 +62,7 @@ void GCNS(vector<byte *> &uData, vector<int> &uLens, vector<byte *> &uKeys, vect
     for(int i = 0; i < n; i++) {
         byte *cipher = new byte[uLens[i]];
         CUDA_ERR_CHK(cudaMemcpy(cipher, h_uData[i], uLens[i], cudaMemcpyDeviceToHost));
+        // if(i == 0) cout << hex(cipher, uLens[i]);
         ciphers.push_back(move(cipher));
         CUDA_ERR_CHK(cudaFree(h_uData[i]));
         CUDA_ERR_CHK(cudaFree(h_uKeys[i]));

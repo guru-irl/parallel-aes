@@ -184,7 +184,7 @@ __global__ void GCNS_Cipher(byte **uData, byte **keys, int *lens, int n_users, b
         int id = threadIdx.x;
 
         if(id == 0)
-            d_KeyExpansion(keys[user_id], d_expandedKey, d_sbox, rcon);
+            d_KeyExpansion(keys[user_id], d_expandedKey, sbox, rcon);
 
         __syncthreads();
 
