@@ -6,6 +6,7 @@
 #include <ctime>
 #include <omp.h>
 #include <sys/time.h> 
+#include <math.h>
 
 #include "../include/aeslib.hpp"
 #include "../include/genlib.hpp"
@@ -21,8 +22,35 @@ void CCS(vector<byte *> &uData, vector<int> &uLens, vector<byte *> &uKeys, vecto
     byte expandedKey[176];      //expanded key variable, differs for every user key -> 44*4 = 176
 
     //cut coalesced data into slices
-    
 
+    vector<byte *> slicedData;
+    vector<int> key_table;
+
+    int n_slices = 0;
+    int n_users = uData.size();
+
+    for(int i = 0 ; i < uLens.size() ; ++i)
+        n_slices += ceil((float)uLens[i]/(float)SLICE_LEN);
+
+    slicedData.reserve(n_slices);
+    key_table.reserve(n_slices);
+
+    for(int i = 0; i < n_users; i++){
+        n = uLens[i];
+        for(int j = 0; j < n; j += SLICE_LEN){
+            byte* slice = new byte[SLICE_LEN]; 
+            for(int k = 0; k < SLICE_LEN; k++) {
+                if(j + k < n) {
+                    slice[k] = uData[i][j+k];
+                }
+                else {
+                    slice[k] = 0;
+                }
+            }
+            key_table.push_back(i);
+            slicedData.push_back(move(slice));
+        }
+    }
     //nested parallesim is being implemented
     //enables nested parallelism
     omp_set_nested(1);
