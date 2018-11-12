@@ -16,16 +16,10 @@
 
 using namespace std;
 
-void CCS(vector<byte *> &uData, vector<int> &uLens, vector<byte *> &uKeys, vector<byte *> &ciphers){
-
-    int n;                      //variable to store the length of the message in the loop
-    byte expandedKey[176];      //expanded key variable, differs for every user key -> 44*4 = 176
+void sliceData(vector<byte *> &uData, vector<int> &uLens, vector<byte *> &slicedData, vector<int> &key_table){
 
     //cut coalesced data into slices
-
-    vector<byte *> slicedData;
-    vector<int> key_table;
-
+    int n;
     int n_slices = 0;
     int n_users = uData.size();
 
@@ -51,31 +45,43 @@ void CCS(vector<byte *> &uData, vector<int> &uLens, vector<byte *> &uKeys, vecto
             slicedData.push_back(move(slice));
         }
     }
+}
+
+void CCS(vector<byte *> &uData, vector<int> &uLens, vector<byte *> &uKeys, vector<byte *> &ciphers){
+
+    int n;                      //variable to store the length of the message in the loop
+    byte expandedKey[176];      //expanded key variable, differs for every user key -> 44*4 = 176
+
+    // we have to slice the data and obtain the key table
+    vector<byte *> slicedData;
+    vector<int> key_table;
+
+    sliceData(uData,uLens, slicedData, key_table);
+
     //nested parallesim is being implemented
     //enables nested parallelism
     omp_set_nested(1);
 
     //the total number of cores I have is 4
-    //hence the parallelism is split as 2*2 giving a total of threads 
+    //hence the parallelism is split as 2*2 giving a total of 4 threads 
     omp_set_num_threads(2);
     #pragma omp parallel for
-    for(int i = 0; i < uData.size(); i++) {
+    for(int i = 0; i < slicedData.size(); i++) {
 
-        n = uLens[i];
-        byte *cipher = new byte[n];
+        byte *cipher = new byte[SLICE_LEN];
         
-        KeyExpansion(uKeys[i], expandedKey);
+        KeyExpansion(uKeys[key_table[i]], expandedKey);
         
         omp_set_num_threads(2);
         #pragma omp parallel for 
-        for(int curr_index = 0 ; curr_index<uLens[i] ; curr_index+=16){
+        for(int curr_index = 0 ; curr_index<SLICE_LEN ; curr_index+=16){
 
-            AddRoundKey(uData[i] + curr_index , expandedKey);
+            AddRoundKey(slicedData[i] + curr_index , expandedKey);
             for(int n_rounds = 1 ; n_rounds<=10 ; ++n_rounds)
-                Round(uData[i] + curr_index, expandedKey + (n_rounds*16), (n_rounds==10));
+                Round(slicedData[i] + curr_index, expandedKey + (n_rounds*16), (n_rounds==10));
         }
 
-        cipher = uData[i];
+        cipher = slicedData[i];
         ciphers.push_back(move(cipher));
     }
 }
