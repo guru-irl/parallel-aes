@@ -4,7 +4,8 @@
 #include <fstream>
 #include <cuda.h>
 #include <vector>
-#include <ctime>
+#include <numeric>
+#include <chrono> 
 
 #include "../include/aeslib.hpp"
 #include "../include/genlib.hpp"
@@ -12,26 +13,35 @@
 
 using namespace std;
 
-int slice(vector<byte *> &uData, vector<int> &uLens, vector<byte *> &slicedData, vector<int> &Table, int totLens, int slicelen) {
-    int n_slices = ceil((float)totLens/ (float)slicelen);
-    slicedData.reserve(n_slices);
-    Table.reserve(n_slices);
+int sliceData(vector<byte *> &uData, vector<int> &uLens, vector<byte *> &slicedData, vector<int> &keyTable){
+
+    //cut coalesced data into slices
+    int n;
+    int approx_n_slices = 0;
+    int n_users = uData.size();
+
+    /*for(int i = 0 ; i < uLens.size() ; ++i)
+        n_slices += ceil((float)uLens[i]/(float)SLICELEN);*/
     
-    int i, j, k, l;
-    int n = uData.size();
-    for(i = 0; i < n; i++) {
-        l = uLens[i];
-        for(j = 0; j < l; j+=slicelen) {
-            byte* slice = new byte[slicelen]; 
-            for(k = 0; k < slicelen; k++) {
-                if(j + k < l) {
+    long long tot_lens = accumulate(uLens.begin(), uLens.end(), 0);
+    approx_n_slices = tot_lens/SLICELEN;
+
+    slicedData.reserve(approx_n_slices);
+    keyTable.reserve(approx_n_slices);
+
+    for(int i = 0; i < n_users; i++){
+        n = uLens[i];
+        for(int j = 0; j < n; j += SLICELEN){
+            byte* slice = new byte[SLICELEN]; 
+            for(int k = 0; k < SLICELEN; k++) {
+                if(j + k < n) {
                     slice[k] = uData[i][j+k];
                 }
                 else {
                     slice[k] = 0;
                 }
             }
-            Table.push_back(i);
+            keyTable.push_back(i);
             slicedData.push_back(move(slice));
         }
     }
@@ -39,7 +49,7 @@ int slice(vector<byte *> &uData, vector<int> &uLens, vector<byte *> &slicedData,
     return slicedData.size();
 }
 
-void GCS(vector<byte *> &uData, vector<int> &uLens, vector<byte *> &uKeys, vector<byte *> &ciphers, int totLens, int sliceLen) {
+void GCS(vector<byte *> &uData, vector<int> &uLens, vector<int> keyTable, vector<byte *> &uKeys, vector<byte *> &ciphers) {
     
     // The published algorithm copies the ciphers back to uData
     // But I'm gonna put them in a separate array in case I need the raw user data for something.
@@ -48,10 +58,12 @@ void GCS(vector<byte *> &uData, vector<int> &uLens, vector<byte *> &uKeys, vecto
     // They will be further copied to shared memory in the kernel
     // The idea being to reduce memory latency 
 
-    vector<byte *> slicedData;
-    vector<int> key_table;
+    vector<byte *> expandedKeys(uKeys.size());
 
-    int n_slices = slice(uData, uLens, slicedData, key_table, totLens, sliceLen);
+    for(int i = 0; i < uKeys.size(); i++) {
+        expandedKeys[i] = new byte[176];
+        KeyExpansion(uKeys[i], expandedKeys[i]);
+    }
 
     byte *d_sbox;
     byte *d_mul2;
@@ -68,66 +80,64 @@ void GCS(vector<byte *> &uData, vector<int> &uLens, vector<byte *> &uKeys, vecto
     CUDA_ERR_CHK(cudaMemcpy(d_mul3, mul3, 256, cudaMemcpyHostToDevice));
     CUDA_ERR_CHK(cudaMemcpy(d_rcon, rcon, 256, cudaMemcpyHostToDevice));
 
-    int n = uData.size();
-    byte *h_slicedData[n_slices];
+    int n_slices = uData.size();
+    int n = uLens.size();
+    byte *h_uData[n_slices];
     byte *h_uKeys[n];
 
     for(int i = 0; i < n_slices; i++) {
-        CUDA_ERR_CHK(cudaMalloc((void **) &h_slicedData[i], sliceLen));
-        CUDA_ERR_CHK(cudaMemcpy(h_slicedData[i], slicedData[i], sliceLen, cudaMemcpyHostToDevice))
+        CUDA_ERR_CHK(cudaMalloc((void **) &h_uData[i], SLICELEN));
+        CUDA_ERR_CHK(cudaMemcpy(h_uData[i], uData[i], SLICELEN, cudaMemcpyHostToDevice))
+
         if(i < n) {
-            CUDA_ERR_CHK(cudaMalloc((void **) &h_uKeys[i], 16));
-            CUDA_ERR_CHK(cudaMemcpy(h_uKeys[i], uKeys[i], 16, cudaMemcpyHostToDevice));
+        CUDA_ERR_CHK(cudaMalloc((void **) &h_uKeys[i], 176));
+        CUDA_ERR_CHK(cudaMemcpy(h_uKeys[i], expandedKeys[i], 176, cudaMemcpyHostToDevice));
         }
     }
 
-    byte **d_slicedData;
+
+    byte **d_uData;
     byte **d_uKeys;
-    int *d_key_table;
-    CUDA_ERR_CHK(cudaMalloc((void **) &d_slicedData, n_slices*sizeof(byte*)));
+    int *d_keyTable;
+    CUDA_ERR_CHK(cudaMalloc((void **) &d_uData, n_slices*sizeof(byte*)));
     CUDA_ERR_CHK(cudaMalloc((void **) &d_uKeys, n*sizeof(byte*)));
-    CUDA_ERR_CHK(cudaMalloc((void **) &d_key_table, n_slices*sizeof(int)));
-
-    CUDA_ERR_CHK(cudaMemcpy(d_slicedData, h_slicedData, n_slices, cudaMemcpyHostToDevice));
-    CUDA_ERR_CHK(cudaMemcpy(d_uKeys, h_uKeys, n, cudaMemcpyHostToDevice));
-    CUDA_ERR_CHK(cudaMemcpy(d_key_table, &(key_table[0]), n_slices, cudaMemcpyHostToDevice));
-
+    CUDA_ERR_CHK(cudaMalloc((void **) &d_keyTable, n_slices*sizeof(int)));
+    CUDA_ERR_CHK(cudaMemcpy(d_uData, h_uData, n_slices*sizeof(byte*), cudaMemcpyHostToDevice));
+    CUDA_ERR_CHK(cudaMemcpy(d_uKeys, h_uKeys, n*sizeof(byte*), cudaMemcpyHostToDevice));
+    CUDA_ERR_CHK(cudaMemcpy(d_keyTable, &(keyTable[0]), n_slices*sizeof(int), cudaMemcpyHostToDevice));
     
     int gridsize, blocksize;
     blocksize = BLOCKSIZE;
     gridsize = n_slices; 
-    GCS_Cipher <<< gridsize, blocksize>>> (d_slicedData, d_uKeys, d_key_table, sliceLen, n_slices, d_sbox, d_mul2, d_mul3, d_rcon);
-    CUDA_ERR_CHK(cudaPeekAtLastError());
+    GCS_Cipher <<< gridsize, blocksize>>> (d_uData, d_uKeys, d_keyTable, n_slices, d_sbox, d_mul2, d_mul3, d_rcon);
+    CUDA_ERR_CHK(cudaPeekAtLastError()); // Checks for launch error
+    CUDA_ERR_CHK(cudaThreadSynchronize()); // Checks for execution error
     
-    /*
-    int cur_slice = 0, j, number_of_slices_in_i;
-    for(int i = 0; i < n; i++) {
-        number_of_slices_in_i = ceil((float)uLens[i] / (float)sliceLen);
-        byte *cipher = new byte[number_of_slices_in_i * sliceLen];
-        for(j = 0; j < number_of_slices_in_i; j++) {
-            CUDA_ERR_CHK(cudaMemcpy(cipher + j*sliceLen, h_slicedData[cur_slice], sliceLen, cudaMemcpyDeviceToHost));
-            CUDA_ERR_CHK(cudaFree(h_slicedData[cur_slice]));  
-            cur_slice++;
-        }
+    for(int i = 0; i < n_slices; i++) {
+        byte *cipher = new byte[SLICELEN];
+        CUDA_ERR_CHK(cudaMemcpy(cipher, h_uData[i], SLICELEN, cudaMemcpyDeviceToHost));
         ciphers.push_back(move(cipher));
+        CUDA_ERR_CHK(cudaFree(h_uData[i]));
+        if(i < n)
         CUDA_ERR_CHK(cudaFree(h_uKeys[i]));
-    }*/
+    }
 
-    CUDA_ERR_CHK(cudaFree(d_slicedData));
+    CUDA_ERR_CHK(cudaFree(d_uData));
     CUDA_ERR_CHK(cudaFree(d_uKeys));
+    CUDA_ERR_CHK(cudaFree(d_keyTable));
 }
 
-long long get_data(opts vars, vector<byte*> &msgs, vector<int> &lens, vector<byte*> &keys, int i, int j) {
+
+void get_data(opts vars, vector<byte*> &msgs, vector<int> &lens, vector<byte*> &keys, int i, int j) {
 
     if(i < vars.n_files_start || i > vars.n_files_end || j < 0 || j >= vars.m_batches ) {
         cout << "Invalid getdata params";
-        return i;
+        return;
     }
 
 	string msg_path, key_path;
     ifstream f_msg, f_key;
-    long long sum = 0;
-
+   
     int k, n;
     for(k = 0; k < i; k++) {
         msg_path = vars.path + "/" + to_string(i) + "/" + to_string(j) + "/" + to_string(k);
@@ -140,8 +150,7 @@ long long get_data(opts vars, vector<byte*> &msgs, vector<int> &lens, vector<byt
 
 		    f_msg.seekg(0, f_msg.end);
             n = f_msg.tellg();
-            sum += n;
-    		f_msg.seekg(0, f_msg.beg);
+            f_msg.seekg(0, f_msg.beg);
 
             byte *message = new byte[n];
 		    byte *key = new byte[16];
@@ -160,55 +169,58 @@ long long get_data(opts vars, vector<byte*> &msgs, vector<int> &lens, vector<byt
             cout << "read failed";
         }
     }
-
-    return sum;
 }
 
 
 int main() {
     opts vars = get_defaults();
-	clock_t start, end;
+    ofstream data_dump;
+    data_dump.open(vars.datadump, fstream::app);
+
     int i, j;
     for(i = vars.n_files_start; i <= vars.n_files_end; i += vars.step) {
-        
-        long long isum = 0;
         for(j = 0; j < vars.m_batches; j++) {
-            vector<long> batchtimes;
-			long sum = 0;
-            
             vector<byte*> uData;
             vector<int> uLens;
+            vector<int> keyTable;
             vector<byte*> uKeys;
-            long long totLens;
+            vector<byte*> slicedData;
 
-            // Need to calculate this properly
-            int sliceLen = SLICELEN;
-
-            totLens = get_data(vars, uData, uLens, uKeys, i, j);
+            get_data(vars, uData, uLens, uKeys, i, j);
+            int n_slices = sliceData(uData, uLens, slicedData, keyTable);
             vector<byte*> ciphers;
-            ciphers.reserve(i);
-            
-            start = clock();
-            GCS(uData, uLens, uKeys, ciphers, totLens, sliceLen);
-            end = clock();
-            batchtimes.push_back((end-start));
-			sum += (end-start);
-			printf("\n N_FILES: %5d | BATCH: %2d | TIME: %10.4lf ms", i, j, ((double)sum * 100)/CLOCKS_PER_SEC);
-			isum += sum;
-
+            ciphers.reserve(n_slices);
+    
+            auto start = chrono::high_resolution_clock::now();
+            GCS(slicedData, uLens, keyTable, uKeys, ciphers);
+            auto end = chrono::high_resolution_clock::now();
+    
             string out_path;
             ofstream fout;
+
+            int cur_slice = 0;
             for(int k = 0; k < i; k++) {
                 out_path = vars.path + "/" + to_string(i) + "/" + to_string(j) + "/" + to_string(k) + "_cipher_gcs";
                 fout.open(out_path, ios::binary);
-                fout.write(reinterpret_cast<char *> (ciphers[k]), uLens[k]);
+
+                while(cur_slice < n_slices && keyTable[cur_slice] == k) {
+                    fout.write(reinterpret_cast<char *> (ciphers[cur_slice]), SLICELEN);
+                    delete[] slicedData[cur_slice];
+                    delete[] ciphers[cur_slice];
+                    cur_slice++;
+                }
+
                 fout.close();
                 delete[] uData[k];
                 delete[] uKeys[k];
             }
+
+            auto _time = chrono::duration_cast<chrono::milliseconds>(end - start);
+        	printf("\n N_FILES: %5d | BATCH: %2d | TIME: %10ld ms", i, j, _time.count());
+            data_dump << vars.path << ",GCS," << i << "," << j << "," << _time.count() << endl;
         }
-		printf("\n N_FILES: %5d | AVG_TIME: %10.4lf ms\n", i, (((double)isum * 100)/vars.m_batches)/CLOCKS_PER_SEC);
-    }
+        cout << endl;
+	}
 
     return 0;
 }
