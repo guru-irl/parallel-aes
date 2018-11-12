@@ -8,6 +8,7 @@
 // This needs to be calculated properly using the formulae in the paper. 
 // Using a placeholder value for now.
 #define BLOCKSIZE 1024 
+#define SLICELEN 16384
 
 #define CUDA_ERR_CHK(ans) { gpuAssert((ans), __FILE__, __LINE__); }
 inline void gpuAssert(cudaError_t code, const char *file, int line, bool abort=true)
@@ -184,7 +185,6 @@ __global__ void GCNS_Cipher(byte **uData, byte **keys, int *lens, int n_users, b
                 d_sbox[i] = sbox[i];
                 d_mul2[i] = mul2[i];
                 d_mul3[i] = mul3[i];
-                // if(i < 176) d_expandedKey[i] = expandedKey[i];
             }
             d_KeyExpansion(keys[user_id], d_expandedKey, d_sbox, rcon);
         }
@@ -192,10 +192,43 @@ __global__ void GCNS_Cipher(byte **uData, byte **keys, int *lens, int n_users, b
 
         int cur_index = (threadIdx.x)*16;
         if((cur_index + 16) <= lens[user_id]) {
-            // printf("Thread %d \n", id/16);
             AddRoundKey(uData[user_id] + cur_index, d_expandedKey);
             for(int n = 1; n <= N_ROUNDS; n++) {
                 Round(uData[user_id] + cur_index, d_expandedKey + (n)*16, d_sbox, d_mul2, d_mul3, n == 10);
+            }
+        }
+    }
+}
+
+__global__ void GCS_Cipher(byte **slicedData, byte **keys, int *key_table, int sliceLen, int n_slices, byte *sbox, byte *mul2, byte *mul3, byte *rcon) {
+    __shared__ byte d_sbox[256];
+    __shared__ byte d_mul2[256];
+    __shared__ byte d_mul3[256];
+    __shared__ byte d_expandedKey[176];
+    // __shared__ int d_key_table[n_slices];
+
+    int slice_id = blockDim.x*blockIdx.x;
+    __shared__ int user_id;
+    if(slice_id < n_slices) {
+        if(threadIdx.x == 0) {
+            for(int i = 0; i < 256; i++) {
+                // if(i < 256) {
+                    d_sbox[i] = sbox[i];
+                    d_mul2[i] = mul2[i];
+                    d_mul3[i] = mul3[i];
+                // }
+                // d_key_table[i] = key_table[i];
+            }
+            user_id = key_table[slice_id];
+            d_KeyExpansion(keys[user_id], d_expandedKey, d_sbox, rcon);
+        }
+        // user_id = d_key_table[slice_id];
+        __syncthreads();
+        int cur_index = (threadIdx.x)*16;
+        if((cur_index + 16) <= sliceLen) {
+            AddRoundKey(slicedData[slice_id] + cur_index, d_expandedKey);
+            for(int n = 1; n <= N_ROUNDS; n++) {
+                Round(slicedData[slice_id] + cur_index, d_expandedKey + (n)*16, d_sbox, d_mul2, d_mul3, n == 10);
             }
         }
     }
