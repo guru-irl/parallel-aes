@@ -4,7 +4,7 @@
 #include <fstream>
 #include <cuda.h>
 #include <vector>
-#include <ctime>
+#include <chrono> 
 
 #include "../include/aeslib.hpp"
 #include "../include/genlib.hpp"
@@ -14,12 +14,6 @@ using namespace std;
 
 void GCNS(vector<byte *> &uData, vector<int> &uLens, vector<byte *> &uKeys, vector<byte *> &ciphers) {
     
-    // The published algorithm copies the ciphers back to uData
-    // But I'm gonna put them in a separate array in case I need the raw user data for something.
-
-    // The following variables are stored in global memory
-    // They will be further copied to shared memory in the kernel
-    // The idea being to reduce memory latency 
     byte *d_sbox;
     byte *d_mul2;
     byte *d_mul3;
@@ -52,9 +46,9 @@ void GCNS(vector<byte *> &uData, vector<int> &uLens, vector<byte *> &uKeys, vect
     CUDA_ERR_CHK(cudaMalloc((void **) &d_uData, n*sizeof(byte*)));
     CUDA_ERR_CHK(cudaMalloc((void **) &d_uKeys, n*sizeof(byte*)));
     CUDA_ERR_CHK(cudaMalloc((void **) &d_uLens, n*sizeof(int)));
-    CUDA_ERR_CHK(cudaMemcpy(d_uData, h_uData, n, cudaMemcpyHostToDevice));
-    CUDA_ERR_CHK(cudaMemcpy(d_uKeys, h_uKeys, n, cudaMemcpyHostToDevice));
-    CUDA_ERR_CHK(cudaMemcpy(d_uLens, &(uLens[0]), n, cudaMemcpyHostToDevice));
+    CUDA_ERR_CHK(cudaMemcpy(d_uData, h_uData, n*sizeof(byte*), cudaMemcpyHostToDevice));
+    CUDA_ERR_CHK(cudaMemcpy(d_uKeys, h_uKeys, n*sizeof(byte*), cudaMemcpyHostToDevice));
+    CUDA_ERR_CHK(cudaMemcpy(d_uLens, &(uLens[0]), n*sizeof(int), cudaMemcpyHostToDevice));
 
     
     int gridsize, blocksize;
@@ -62,7 +56,9 @@ void GCNS(vector<byte *> &uData, vector<int> &uLens, vector<byte *> &uKeys, vect
     gridsize = n; 
     GCNS_Cipher <<< gridsize, blocksize>>> (d_uData, d_uKeys, d_uLens, n, d_sbox, d_mul2, d_mul3, d_rcon);
     CUDA_ERR_CHK(cudaPeekAtLastError());
-    
+    CUDA_ERR_CHK(cudaThreadSynchronize()); 
+
+
     for(int i = 0; i < n; i++) {
         byte *cipher = new byte[uLens[i]];
         CUDA_ERR_CHK(cudaMemcpy(cipher, h_uData[i], uLens[i], cudaMemcpyDeviceToHost));
@@ -122,15 +118,12 @@ void get_data(opts vars, vector<byte*> &msgs, vector<int> &lens, vector<byte*> &
 
 int main() {
     opts vars = get_defaults();
-	clock_t start, end;
+    ofstream data_dump;
+    data_dump.open(vars.datadump, fstream::app);
+
     int i, j;
     for(i = vars.n_files_start; i <= vars.n_files_end; i += vars.step) {
-        
-        long long isum = 0;
-        for(j = 0; j < vars.m_batches; j++) {
-            vector<long> batchtimes;
-			long sum = 0;
-            
+        for(j = 0; j < vars.m_batches; j++) {   
             vector<byte*> uData;
             vector<int> uLens;
             vector<byte*> uKeys;
@@ -138,15 +131,11 @@ int main() {
             get_data(vars, uData, uLens, uKeys, i, j);
             vector<byte*> ciphers;
             ciphers.reserve(i);
-            
-            start = clock();
+      
+            auto start = chrono::high_resolution_clock::now();
             GCNS(uData, uLens, uKeys, ciphers);
-            end = clock();
-            batchtimes.push_back((end-start));
-			sum += (end-start);
-			printf("\n N_FILES: %5d | BATCH: %2d | TIME: %10.4lf ms", i, j, ((double)sum * 100)/CLOCKS_PER_SEC);
-			isum += sum;
-
+            auto end = chrono::high_resolution_clock::now();
+			
             string out_path;
             ofstream fout;
             for(int k = 0; k < i; k++) {
@@ -156,10 +145,17 @@ int main() {
                 fout.close();
                 delete[] uData[k];
                 delete[] uKeys[k];
+                delete[] ciphers[k];
             }
+
+            auto _time = chrono::duration_cast<chrono::milliseconds>(end - start);
+        	printf("\n N_FILES: %5d | BATCH: %2d | TIME: %10ld ms", i, j, _time.count());
+            data_dump << vars.path << ",GCNS," << i << "," << j << "," << _time.count() << endl;
         }
-		printf("\n N_FILES: %5d | AVG_TIME: %10.4lf ms\n", i, (((double)isum * 100)/vars.m_batches)/CLOCKS_PER_SEC);
+        cout << endl;
     }
+
+    data_dump.close();
 
     return 0;
 }

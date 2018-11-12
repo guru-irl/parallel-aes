@@ -56,6 +56,8 @@ void GNC(vector<byte *> &uData, vector<int> &uLens, vector<byte *> &uKeys, vecto
 
         GNC_Cipher <<< gridsize, blocksize>>> (d_message, n, d_expandedKey, d_sbox, d_mul2, d_mul3);
         CUDA_ERR_CHK(cudaPeekAtLastError());
+        CUDA_ERR_CHK(cudaThreadSynchronize()); // Checks for execution error
+
         CUDA_ERR_CHK(cudaMemcpy(cipher, d_message, n, cudaMemcpyDeviceToHost));
         ciphers.push_back(move(cipher));
 
@@ -115,15 +117,12 @@ void get_data(opts vars, vector<byte*> &msgs, vector<int> &lens, vector<byte*> &
 
 int main() {
     opts vars = get_defaults();
-	clock_t start, end;
+    ofstream data_dump;
+    data_dump.open(vars.datadump, fstream::app);
+    
     int i, j;
     for(i = vars.n_files_start; i <= vars.n_files_end; i += vars.step) {
-        
-        long long isum = 0;
         for(j = 0; j < vars.m_batches; j++) {
-            vector<long> batchtimes;
-			long sum = 0;
-            
             vector<byte*> uData;
             vector<int> uLens;
             vector<byte*> uKeys;
@@ -131,14 +130,11 @@ int main() {
             get_data(vars, uData, uLens, uKeys, i, j);
             vector<byte*> ciphers;
             ciphers.reserve(i);
-            start = clock();
+    
+            auto start = chrono::high_resolution_clock::now();
             GNC(uData, uLens, uKeys, ciphers);
-            end = clock();
-            batchtimes.push_back((end-start));
-			sum += (end-start);
-			printf("\n N_FILES: %5d | BATCH: %2d | TIME: %10.4lf ms", i, j, ((double)sum * 100)/CLOCKS_PER_SEC);
-			isum += sum;
-
+            auto end = chrono::high_resolution_clock::now();
+    
             string out_path;
             ofstream fout;
             for(int k = 0; k < i; k++) {
@@ -146,14 +142,16 @@ int main() {
                 fout.open(out_path, ios::binary);
                 fout.write(reinterpret_cast<char *> (ciphers[k]), uLens[k]);
                 fout.close();
-                // free(uData[k]);
-                // free(uKeys[k]);
                 delete[] uData[k];
                 delete[] uKeys[k];
+                delete[] ciphers[k];
             }
+
+            auto _time = chrono::duration_cast<chrono::milliseconds>(end - start);
+        	printf("\n N_FILES: %5d | BATCH: %2d | TIME: %10ld ms", i, j, _time.count());
+            data_dump << vars.path << ",GNC," << i << "," << j << "," << _time.count() << endl;
         }
-		printf("\n N_FILES: %5d | AVG_TIME: %10.4lf ms\n", i, (((double)isum * 100)/vars.m_batches)/CLOCKS_PER_SEC);
-    }
+	}
 
     return 0;
 }

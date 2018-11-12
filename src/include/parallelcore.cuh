@@ -7,7 +7,8 @@
 
 // This needs to be calculated properly using the formulae in the paper. 
 // Using a placeholder value for now.
-#define BLOCKSIZE 1024 
+#define BLOCKSIZE 256 
+#define SLICELEN 4096
 
 #define CUDA_ERR_CHK(ans) { gpuAssert((ans), __FILE__, __LINE__); }
 inline void gpuAssert(cudaError_t code, const char *file, int line, bool abort=true)
@@ -111,8 +112,9 @@ __device__ void d_shift_sub_rcon(byte *in, byte i, byte *d_sbox, byte *d_rcon) {
     in[0] ^= d_rcon[i];
 }
 
-__device__ void d_KeyExpansion(byte inputKey[16], byte expandedKeys[176], byte *d_sbox, byte *d_rcon) {
-	
+__device__ void d_KeyExpansion(byte* inputKey, byte* expandedKeys, byte *d_sbox, byte *d_rcon) {
+    
+    // byte a = 123456;
     for (int i = 0; i < 16; i++) {
         expandedKeys[i] = inputKey[i];
     }
@@ -120,7 +122,6 @@ __device__ void d_KeyExpansion(byte inputKey[16], byte expandedKeys[176], byte *
     int bytesGenerated = 16; 
     int rconIteration = 1;
     byte tmpCore[4]; 
-
     while (bytesGenerated < 176) {
         #pragma unroll
         for (int i = 0; i < 4; i++) {
@@ -147,22 +148,21 @@ __global__ void GNC_Cipher(byte *message, int msg_length, byte expandedKey[176],
     __shared__ byte d_mul3[256];
     __shared__ byte d_expandedKey[176];
 
-    if(threadIdx.x == 0) {
-        for(int i = 0; i < 256; i++) {
-            d_sbox[i] = sbox[i];
-            d_mul2[i] = mul2[i];
-            d_mul3[i] = mul3[i];
-            if(i < 176) d_expandedKey[i] = expandedKey[i]; 
-        }
+    int id = (blockDim.x*blockIdx.x + threadIdx.x) * 16;
+    if(id < 256) {
+        d_sbox[id] = sbox[id];
+        d_mul2[id] = mul2[id];
+        d_mul3[id] = mul3[id];   
+    }
+
+    if(id < 176) {
+        d_expandedKey[id] = expandedKey[id];
     }
 
     __syncthreads();
-    int id = (blockDim.x*blockIdx.x + threadIdx.x) * 16;
-    // printf("%d %d %d \n", blockDim.x, blockIdx.x, threadIdx.x);
-    // printf("Thread out %d \n", id/16);
-	
+
+   
     if((id + 16) <= msg_length) {
-        // printf("Thread %d \n", id/16);
         AddRoundKey(message + id, d_expandedKey);
         for(int n = 1; n <= N_ROUNDS; n++) {
             Round(message + id, d_expandedKey + (n)*16, d_sbox, d_mul2, d_mul3, n == 10);
@@ -172,30 +172,73 @@ __global__ void GNC_Cipher(byte *message, int msg_length, byte expandedKey[176],
 
 
 __global__ void GCNS_Cipher(byte **uData, byte **keys, int *lens, int n_users, byte *sbox, byte *mul2, byte *mul3, byte *rcon) {
-    __shared__ byte d_sbox[256];
-    __shared__ byte d_mul2[256];
-    __shared__ byte d_mul3[256];
-    __shared__ byte d_expandedKey[176];
 
-    int user_id = blockDim.x*blockIdx.x;
-    if(user_id < n_users) {
-        if(threadIdx.x == 0) {
-            for(int i = 0; i < 256; i++) {
-                d_sbox[i] = sbox[i];
-                d_mul2[i] = mul2[i];
-                d_mul3[i] = mul3[i];
-                // if(i < 176) d_expandedKey[i] = expandedKey[i];
-            }
+    if(blockIdx.x < n_users) {
+
+        __shared__ byte d_sbox[256];
+        __shared__ byte d_mul2[256];
+        __shared__ byte d_mul3[256];
+        __shared__ byte d_expandedKey[176];
+    
+        int user_id = blockIdx.x;
+        int id = threadIdx.x;
+
+        if(id == 0)
             d_KeyExpansion(keys[user_id], d_expandedKey, d_sbox, rcon);
+
+        __syncthreads();
+
+        if(id < 256) {
+            d_sbox[id] = sbox[id];
+            d_mul2[id] = mul2[id];
+            d_mul3[id] = mul3[id];   
         }
         __syncthreads();
 
         int cur_index = (threadIdx.x)*16;
         if((cur_index + 16) <= lens[user_id]) {
-            // printf("Thread %d \n", id/16);
             AddRoundKey(uData[user_id] + cur_index, d_expandedKey);
             for(int n = 1; n <= N_ROUNDS; n++) {
                 Round(uData[user_id] + cur_index, d_expandedKey + (n)*16, d_sbox, d_mul2, d_mul3, n == 10);
+            }
+        }
+    }
+}
+
+__global__ void GCS_Cipher(byte **slicedData, byte **expandedKeys, int *keyTable, int n_slices, byte *sbox, byte *mul2, byte *mul3, byte *rcon) {
+
+    if(blockIdx.x < n_slices) {
+
+        __shared__ byte d_sbox[256];
+        __shared__ byte d_mul2[256];
+        __shared__ byte d_mul3[256];
+        __shared__ byte d_expandedKey[176];
+        __shared__ int user_id;
+
+        int slice_id = blockIdx.x;
+        int id = threadIdx.x;
+    
+        if(id == 0) {
+            user_id = keyTable[slice_id];
+        }
+        __syncthreads();
+
+        if(id < 256) {
+            d_sbox[id] = sbox[id];
+            d_mul2[id] = mul2[id];
+            d_mul3[id] = mul3[id];   
+        }
+
+        if (id < 176) {
+            d_expandedKey[id] = expandedKeys[user_id][id];
+        }
+        __syncthreads();
+
+        int cur_index = (threadIdx.x)*16;
+        if((cur_index + 16) <= SLICELEN) {
+            AddRoundKey(slicedData[slice_id] + cur_index, d_expandedKey);
+            for(int n = 1; n <= N_ROUNDS; n++) {
+                Round(slicedData[slice_id] + cur_index, d_expandedKey + (n)*16, d_sbox, d_mul2, d_mul3, n == 10);
             }
         }
     }
