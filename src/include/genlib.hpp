@@ -9,14 +9,15 @@ struct opts {
     int step;
     int m_batches;
     std::string path;
-
+    std::string datadump;
     int minlength;
     int maxlength;
 };
 
 opts get_defaults(){
     opts default_vars;
-    default_vars.path = "../norm_dataset";
+    default_vars.path = "../dataset";
+    default_vars.datadump = "../tdata.csv";
     default_vars.n_files_start = 100;
     default_vars.n_files_end = 1000;
     default_vars.step = 100;
