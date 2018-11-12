@@ -16,7 +16,7 @@ struct opts {
 
 opts get_defaults(){
     opts default_vars;
-    default_vars.path = "../dataset";
+    default_vars.path = "../norm_dataset";
     default_vars.datadump = "../tdata.csv";
     default_vars.n_files_start = 100;
     default_vars.n_files_end = 1000;
