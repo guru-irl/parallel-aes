@@ -3,10 +3,10 @@
 #include <stdlib.h>
 #include <fstream>
 #include <vector>
-#include <ctime>
-#include <omp.h>
-#include <sys/time.h> 
+#include <omp.h> 
 #include <math.h>
+
+#include <chrono>
 
 #include "../include/aeslib.hpp"
 #include "../include/genlib.hpp"
@@ -130,11 +130,11 @@ void get_data(opts vars, vector<byte*> &msgs, vector<int> &lens, vector<byte*> &
 }
 
 int main() {
-    opts vars = get_defaults();
+    opts vars = get_defaults();    
+    ofstream data_dump;
+    data_dump.open(vars.datadump, fstream::app);
     int i, j;
     for(i = vars.n_files_start; i <= vars.n_files_end; i += vars.step) {
-        
-        double isum = 0;
         for(j = 0; j < vars.m_batches; j++) {
 
             vector<double> batchtimes;
@@ -148,22 +148,10 @@ int main() {
             vector<byte*> ciphers;
             ciphers.reserve(i);
 
-            struct timeval start, end; 
-            gettimeofday(&start, NULL); 
-            ios_base::sync_with_stdio(false); 
+            auto start = chrono::high_resolution_clock::now();
             CCS(uData, uLens, uKeys, ciphers);
-            gettimeofday(&end, NULL); 
-
-            double time_taken; 
+            auto end = chrono::high_resolution_clock::now();
   
-            time_taken = (end.tv_sec - start.tv_sec) * 1e6; 
-            time_taken = (time_taken + (end.tv_usec - start.tv_usec));
-
-            batchtimes.push_back((time_taken));
-			sum += (time_taken);
-			printf("\n N_FILES: %5d | BATCH: %2d | TIME: %10.4lf ms", i, j, ((double)sum * 100)/CLOCKS_PER_SEC);
-			isum += sum;
-
             string out_path;
             ofstream fout;
             for(int k = 0; k < i; k++) {
@@ -174,10 +162,12 @@ int main() {
                 delete[] uData[k];
                 delete[] uKeys[k];
             }
+            auto _time = chrono::duration_cast<chrono::milliseconds>(end - start);
+        	printf("\n N_FILES: %5d | BATCH: %2d | TIME: %10ld ms", i, j, _time.count());
+            data_dump << vars.path << ",CCS," << i << "," << j << "," << _time.count() << endl;
         }
-		printf("\n N_FILES: %5d | AVG_TIME: %10.4lf ms\n", i, (((double)isum * 100)/vars.m_batches)/CLOCKS_PER_SEC);
+        cout << endl;
     }
-
     return 0;
 }
 
