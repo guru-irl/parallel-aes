@@ -74,7 +74,7 @@ All these algorithms have been implemented in this project and the results have 
 
 
 ## Results
-![](parallel-aes/docs/img/Comparing Algorithms.png)
+![ ](parallel-aes/docs/img/Comparing Algorithms.png)
 
 The code was executed and tested with a uniformly random dataset of 100 files to 1000 files. Each file had random data from 30KB to 150KB generated using a pseudo random generator.  
 
