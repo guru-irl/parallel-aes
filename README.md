@@ -15,12 +15,12 @@ AES is parallelisable as it is a symmetric block ciper and the encryption of eac
   
 The paper talks about 6 algorithms, namely:  
 
- * GCS &nbsp: GPU Coalescing and Slicing
+ * GCS  : GPU Coalescing and Slicing
  * GCNS : GPU Coalescing and no Slicing
- * GNC &nbsp: GPU no Coalescing and no Slicing
- * CCS &nbsp: CPU Coalescing and Slicing
+ * GNC  : GPU no Coalescing and no Slicing
+ * CCS  : CPU Coalescing and Slicing
  * CCNS : CPU Coalescing and no Slicing
- * CNC &nbsp: CPU no Coalescing and no Slicing  
+ * CNC  : CPU no Coalescing and no Slicing  
   
 All these algorithms have been implemented in this project and the results have been recorded, visualised and verified.  
 
