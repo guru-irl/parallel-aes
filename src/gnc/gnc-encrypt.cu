@@ -4,7 +4,7 @@
 #include <fstream>
 #include <cuda.h>
 #include <vector>
-#include <ctime>
+#include <chrono>
 
 #include "../include/aeslib.hpp"
 #include "../include/genlib.hpp"
@@ -63,19 +63,25 @@ void GNC(vector<byte *> &uData, vector<int> &uLens, vector<byte *> &uKeys, vecto
 
         CUDA_ERR_CHK(cudaFree(d_message));
     }
+
+    CUDA_ERR_CHK(cudaFree(d_sbox));
+    CUDA_ERR_CHK(cudaFree(d_mul2));
+    CUDA_ERR_CHK(cudaFree(d_mul3));
+
 }
 
-void get_data(opts vars, vector<byte*> &msgs, vector<int> &lens, vector<byte*> &keys, int i, int j) {
+long long get_data(opts vars, vector<byte*> &msgs, vector<int> &lens, vector<byte*> &keys, int i, int j) {
 
     if(i < vars.n_files_start || i > vars.n_files_end || j < 0 || j >= vars.m_batches ) {
         cout << "Invalid getdata params";
-        return;
+        return -1;
     }
 
 	string msg_path, key_path;
     ifstream f_msg, f_key;
 
     int k, n;
+	long long sum = 0;
     for(k = 0; k < i; k++) {
         msg_path = vars.path + "/" + to_string(i) + "/" + to_string(j) + "/" + to_string(k);
         key_path = msg_path+"_key";
@@ -87,6 +93,7 @@ void get_data(opts vars, vector<byte*> &msgs, vector<int> &lens, vector<byte*> &
 
 		    f_msg.seekg(0, f_msg.end);
 	        n = f_msg.tellg();
+			sum += n;
     		f_msg.seekg(0, f_msg.beg);
 
             byte *message = new byte[n];
@@ -108,7 +115,7 @@ void get_data(opts vars, vector<byte*> &msgs, vector<int> &lens, vector<byte*> &
             cout << "read failed";
         }
     }
-
+	return sum;
     // cout << msgs.size() << endl;
     // cout << hex(keys[i-1], 16) << endl;
     // cout << hex(msgs[0], lens[0]) << endl;
@@ -127,7 +134,7 @@ int main() {
             vector<int> uLens;
             vector<byte*> uKeys;
 
-            get_data(vars, uData, uLens, uKeys, i, j);
+            long long len = get_data(vars, uData, uLens, uKeys, i, j);
             vector<byte*> ciphers;
             ciphers.reserve(i);
     
@@ -149,7 +156,7 @@ int main() {
 
             auto _time = chrono::duration_cast<chrono::milliseconds>(end - start);
         	printf("\n N_FILES: %5d | BATCH: %2d | TIME: %10ld ms", i, j, _time.count());
-            data_dump << vars.path << ",GNC," << i << "," << j << "," << _time.count() << endl;
+            data_dump << vars.path << ",GNC," << i << "," << j << "," << _time.count() << "," << len << endl;
         }
 	}
 

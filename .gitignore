@@ -1,4 +1,6 @@
 a.out
 src/dataset
 src/norm_dataset
+src/prop_dataset
+src/new_norm_dataset
 .vscode

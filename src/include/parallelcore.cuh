@@ -205,7 +205,7 @@ __global__ void GCNS_Cipher(byte **uData, byte **keys, int *lens, int n_users, b
     }
 }
 
-__global__ void GCS_Cipher(byte **slicedData, byte **expandedKeys, int *keyTable, int n_slices, byte *sbox, byte *mul2, byte *mul3, byte *rcon) {
+__global__ void GCS_Cipher(byte **slicedData, byte **expandedKeys, int *keyTable, int n_slices, byte *sbox, byte *mul2, byte *mul3) {
 
     if(blockIdx.x < n_slices) {
 
@@ -218,6 +218,7 @@ __global__ void GCS_Cipher(byte **slicedData, byte **expandedKeys, int *keyTable
         int slice_id = blockIdx.x;
         int id = threadIdx.x;
     
+        
         if(id == 0) {
             user_id = keyTable[slice_id];
         }
@@ -233,13 +234,24 @@ __global__ void GCS_Cipher(byte **slicedData, byte **expandedKeys, int *keyTable
             d_expandedKey[id] = expandedKeys[user_id][id];
         }
         __syncthreads();
-
+        
+        
         int cur_index = (threadIdx.x)*16;
         if((cur_index + 16) <= SLICELEN) {
-            AddRoundKey(slicedData[slice_id] + cur_index, d_expandedKey);
+
+            byte local_4bytes[16];
+            #pragma unroll
+            for(int i = 0; i < 16; i++)
+                local_4bytes[i] = (slicedData[slice_id] + cur_index)[i];
+
+            AddRoundKey(local_4bytes, d_expandedKey);
             for(int n = 1; n <= N_ROUNDS; n++) {
-                Round(slicedData[slice_id] + cur_index, d_expandedKey + (n)*16, d_sbox, d_mul2, d_mul3, n == 10);
+                Round(local_4bytes, d_expandedKey + (n)*16, d_sbox, d_mul2, d_mul3, n == 10);
             }
+
+            #pragma unroll
+            for(int i = 0; i < 16; i++)
+                (slicedData[slice_id] + cur_index)[i] = local_4bytes[i];
         }
     }
 }
