@@ -116,6 +116,7 @@ long long get_data(opts vars, vector<byte*> &msgs, vector<int> &lens, vector<byt
             cout << "read failed";
         }
     }
+	return sum;
 }
 
 int main() {
