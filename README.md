@@ -38,27 +38,27 @@ All these algorithms have been implemented in this project and the results have 
     5. Change directory to `prop_dataset` to view the ciper texts in your text editor.
 
 ## File Structure
-* [`docs`](parallel-aes/docs) : All the documentation for the project is present in this folder.
-    * [`img`](parallel-aes/docs/img) : Images of graphs showing results of each algorithm are present here.
-    * [`AES-explanatory-paper.pdf`](parallel-aes/docs/AES-explanatory-paper.pdf) : The paper that was used to learn AES from.
-    * [`Fei_et_al-2016-Concurrency_and_Computation%3A_Practice_and_Experience.pdf`](parallel-aes/docs/Fei_et_al-2016-Concurrency_and_Computation%253A_Practice_and_Experience.pdf) : The research paper being implemented.
+* [`docs`](docs) : All the documentation for the project is present in this folder.
+    * [`img`](docs/img) : Images of graphs showing results of each algorithm are present here.
+    * [`AES-explanatory-paper.pdf`](docs/AES-explanatory-paper.pdf) : The paper that was used to learn AES from.
+    * [`Fei_et_al-2016-Concurrency_and_Computation%3A_Practice_and_Experience.pdf`](docs/Fei_et_al-2016-Concurrency_and_Computation%253A_Practice_and_Experience.pdf) : The research paper being implemented.
     * [`NIST FIPS AES.pdf`](parallel-aes/docs/NIST%20FIPS%20AES.pdf) : The paper that was used to learn AES from.
-* [`src`](parallel-aes/src) : Source code for the project is present in this folder
-    * [`ccns`](parallel-aes/src/ccns) : Source code for the implementation of CCNS algorithm.
-    * [`ccs`](parallel-aes/src/ccs) : Source code for the implementation of CCS algorithm.
-    * [`cnc`](parallel-aes/src/cnc) : Source code for the implementation of CNC algorithm.
-    * [`gcns`](parallel-aes/src/gcns) : Source code for the implementation of GCNS algorithm.
-    * [`gcs`](parallel-aes/src/gcs) : Source code for the implementation of GCS algorithm.
-    * [`generator`](parallel-aes/src/generator) : Source code for producing a normalised random dataset which is used for encryption tests and analysis.
-    * [`gnc`](parallel-aes/src/gnc) : Source code for the implementation of GNC algorithm.
-    * [`include`](parallel-aes/src/include) : Contains the source code for the header files defined by us.
-        * [`aeslib.hpp`](parallel-aes/src/include/aeslib.hpp) : Source code for the header file containing AES code.
-        * [`genlib.hpp`](parallel-aes/src/include/genlib.hpp) : Source code for the header file containing general common functions.
-        * [`paralellcore.cuh`](parallel-aes/src/include/parallelcore.cuh) : Source code for the header file containing functions and kernels for CUDA implementation of AES.
-        * [`parallelcpu.hpp`](parallel-aes/src/include/parallelcpu.hpp) : Source code for the header file containing unctions for OpenMP implementation of AES.
-    * [`norm_dataset`](parallel-aes/src/norm_dataset) : The normalised dataset along with cipher texts (this file will be present once code is run on local repository)
-    * [`sequential`](parallel-aes/src/sequential) : Source code for the implementation of serial AES algorithm.
-    * [`tdata.csv`](/src/tdata.csv) : CSV file where results are dumped into. Used for plotting graphs.
+* [`src`](src) : Source code for the project is present in this folder
+    * [`ccns`](src/ccns) : Source code for the implementation of CCNS algorithm.
+    * [`ccs`](src/ccs) : Source code for the implementation of CCS algorithm.
+    * [`cnc`](src/cnc) : Source code for the implementation of CNC algorithm.
+    * [`gcns`](src/gcns) : Source code for the implementation of GCNS algorithm.
+    * [`gcs`](src/gcs) : Source code for the implementation of GCS algorithm.
+    * [`generator`](src/generator) : Source code for producing a normalised random dataset which is used for encryption tests and analysis.
+    * [`gnc`](src/gnc) : Source code for the implementation of GNC algorithm.
+    * [`include`](src/include) : Contains the source code for the header files defined by us.
+        * [`aeslib.hpp`](src/include/aeslib.hpp) : Source code for the header file containing AES code.
+        * [`genlib.hpp`](src/include/genlib.hpp) : Source code for the header file containing general common functions.
+        * [`paralellcore.cuh`](src/include/parallelcore.cuh) : Source code for the header file containing functions and kernels for CUDA implementation of AES.
+        * [`parallelcpu.hpp`](src/include/parallelcpu.hpp) : Source code for the header file containing unctions for OpenMP implementation of AES.
+    * [`norm_dataset`](src/norm_dataset) : The normalised dataset along with cipher texts (this file will be present once code is run on local repository)
+    * [`sequential`](src/sequential) : Source code for the implementation of serial AES algorithm.
+    * [`final_data.csv`](src/final_data.csv) : CSV file where results are dumped into. Used for plotting graphs.
 * [`.gitignore`](.gitignore) : Files to be ignored during commits by git.
 * [`License`](LICENSE) : MIT license
 * [`README.md`](README.md) : Document giving a brief overview of the project. 
