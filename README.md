@@ -26,10 +26,34 @@ All these algorithms have been implemented in this project and the results have 
 
 ## Instructions for Use
 
-1. Open terminal and exceute _git clone https://github.com/gurupunskill/parallel-aes.git_ to clone the repository.
+1. Open terminal and exceute `git clone https://github.com/gurupunskill/parallel-aes.git` to clone the repository.
 
 ## File Structure
 
+* docs : All the documentation for the project is present in this folder.
+    * img : Images of graphs showing results of each algorithm are present here.
+    * AES-explanatory-paper.pdf : The paper that was used to learn AES from.
+    * Fei_et_al-2016-Concurrency_and_Computation%3A_Practice_and_Experience.pdf : The research paper being implemented.
+    * NIST FIPS AES.pdf : The paper that was used to learn AES from.
+* src : Source code for the project is present in this folder
+    * ccns : Source code for the implementation of CCNS algorithm.
+    * ccs : Source code for the implementation of CCS algorithm.
+    * cnc : Source code for the implementation of CNC algorithm.
+    * gcns : Source code for the implementation of GCNS algorithm.
+    * gcs : Source code for the implementation of GCS algorithm.
+    * generator : Source code for producing a normalised random dataset which is used for encryption tests and analysis.
+    * gnc : Source code for the implementation of GNC algorithm.
+    * include : Contains the source code for the header files defined by us.
+        * aeslib.hpp : Source code for the header file containing AES code.
+        * genlib.hpp : Source code for the header file containing general common functions.
+        * paralellcore.cuh : Source code for the header file containing functions for CUDA implementation of AES.
+        * parallelcpu.hpp : Source code for the header file containing unctions for OpenMP implementation of AES.
+    * norm_dataset : The normalised dataset along with cipher texts (this file will be present once code is run on local repository)
+    * sequential : Source code for the implementation of serial AES algorithm.
+    * tdata.csv : CSV file where results are dumped into. Used for plotting graphs.
+* .gitignore : Files to be ignored during commits by git.
+* License : MIT license
+* README.md : Document giving a brief overview of the project. 
 
 
 ## Results
