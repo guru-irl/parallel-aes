@@ -49,7 +49,7 @@ int sliceData(vector<byte *> &uData, vector<int> &uLens, vector<byte *> &slicedD
     return slicedData.size();
 }
 
-void GCS(vector<byte *> &uData, vector<int> &uLens, vector<int> keyTable, vector<byte *> &uKeys, vector<byte *> &ciphers) {
+long GCS(vector<byte *> &uData, vector<int> &uLens, vector<int> keyTable, vector<byte *> &uKeys, vector<byte *> &ciphers) {
     
     // The published algorithm copies the ciphers back to uData
     // But I'm gonna put them in a separate array in case I need the raw user data for something.
@@ -58,6 +58,7 @@ void GCS(vector<byte *> &uData, vector<int> &uLens, vector<int> keyTable, vector
     // They will be further copied to shared memory in the kernel
     // The idea being to reduce memory latency 
 
+    auto start = chrono::high_resolution_clock::now();
     vector<byte *> expandedKeys(uKeys.size());
 
     for(int i = 0; i < uKeys.size(); i++) {
@@ -68,17 +69,17 @@ void GCS(vector<byte *> &uData, vector<int> &uLens, vector<int> keyTable, vector
     byte *d_sbox;
     byte *d_mul2;
     byte *d_mul3;
-    byte *d_rcon;
+    // byte *d_rcon;
 
     CUDA_ERR_CHK(cudaMalloc((void **) &d_sbox, 256));
     CUDA_ERR_CHK(cudaMalloc((void **) &d_mul2, 256));
     CUDA_ERR_CHK(cudaMalloc((void **) &d_mul3, 256));
-    CUDA_ERR_CHK(cudaMalloc((void **) &d_rcon, 256));
+    // CUDA_ERR_CHK(cudaMalloc((void **) &d_rcon, 256));
 
     CUDA_ERR_CHK(cudaMemcpy(d_sbox, sbox, 256, cudaMemcpyHostToDevice));
     CUDA_ERR_CHK(cudaMemcpy(d_mul2, mul2, 256, cudaMemcpyHostToDevice));
     CUDA_ERR_CHK(cudaMemcpy(d_mul3, mul3, 256, cudaMemcpyHostToDevice));
-    CUDA_ERR_CHK(cudaMemcpy(d_rcon, rcon, 256, cudaMemcpyHostToDevice));
+    // CUDA_ERR_CHK(cudaMemcpy(d_rcon, rcon, 256, cudaMemcpyHostToDevice));
 
     int n_slices = uData.size();
     int n = uLens.size();
@@ -95,7 +96,6 @@ void GCS(vector<byte *> &uData, vector<int> &uLens, vector<int> keyTable, vector
         }
     }
 
-
     byte **d_uData;
     byte **d_uKeys;
     int *d_keyTable;
@@ -109,9 +109,12 @@ void GCS(vector<byte *> &uData, vector<int> &uLens, vector<int> keyTable, vector
     int gridsize, blocksize;
     blocksize = BLOCKSIZE;
     gridsize = n_slices; 
-    GCS_Cipher <<< gridsize, blocksize>>> (d_uData, d_uKeys, d_keyTable, n_slices, d_sbox, d_mul2, d_mul3, d_rcon);
+
+    GCS_Cipher <<< gridsize, blocksize>>> (d_uData, d_uKeys, d_keyTable, n_slices, d_sbox, d_mul2, d_mul3);
     CUDA_ERR_CHK(cudaPeekAtLastError()); // Checks for launch error
     CUDA_ERR_CHK(cudaThreadSynchronize()); // Checks for execution error
+    auto end = chrono::high_resolution_clock::now();
+
     
     for(int i = 0; i < n_slices; i++) {
         byte *cipher = new byte[SLICELEN];
@@ -125,6 +128,14 @@ void GCS(vector<byte *> &uData, vector<int> &uLens, vector<int> keyTable, vector
     CUDA_ERR_CHK(cudaFree(d_uData));
     CUDA_ERR_CHK(cudaFree(d_uKeys));
     CUDA_ERR_CHK(cudaFree(d_keyTable));
+
+    CUDA_ERR_CHK(cudaFree(d_sbox));
+    CUDA_ERR_CHK(cudaFree(d_mul2));
+    CUDA_ERR_CHK(cudaFree(d_mul3));
+
+
+    auto _time = chrono::duration_cast<chrono::milliseconds>(end - start);
+    return _time.count();
 }
 
 
@@ -178,6 +189,7 @@ int main() {
     data_dump.open(vars.datadump, fstream::app);
 
     int i, j;
+    long time_val;
     for(i = vars.n_files_start; i <= vars.n_files_end; i += vars.step) {
         for(j = 0; j < vars.m_batches; j++) {
             vector<byte*> uData;
@@ -192,7 +204,7 @@ int main() {
             ciphers.reserve(n_slices);
     
             auto start = chrono::high_resolution_clock::now();
-            GCS(slicedData, uLens, keyTable, uKeys, ciphers);
+            time_val = GCS(slicedData, uLens, keyTable, uKeys, ciphers);
             auto end = chrono::high_resolution_clock::now();
     
             string out_path;
@@ -216,8 +228,8 @@ int main() {
             }
 
             auto _time = chrono::duration_cast<chrono::milliseconds>(end - start);
-        	printf("\n N_FILES: %5d | BATCH: %2d | TIME: %10ld ms", i, j, _time.count());
-            data_dump << vars.path << ",GCS," << i << "," << j << "," << _time.count() << endl;
+        	printf("\n N_FILES: %5d | BATCH: %2d | TIME: %10ld ms", i, j, time_val);
+            data_dump << vars.path << ",GCS," << i << "," << j << "," << time_val << endl;
         }
         cout << endl;
 	}

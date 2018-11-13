@@ -68,6 +68,12 @@ void GCNS(vector<byte *> &uData, vector<int> &uLens, vector<byte *> &uKeys, vect
         CUDA_ERR_CHK(cudaFree(h_uKeys[i]));
     }
 
+    CUDA_ERR_CHK(cudaFree(d_sbox));
+    CUDA_ERR_CHK(cudaFree(d_mul2));
+    CUDA_ERR_CHK(cudaFree(d_mul3));
+    CUDA_ERR_CHK(cudaFree(d_rcon));
+
+
     CUDA_ERR_CHK(cudaFree(d_uData));
     CUDA_ERR_CHK(cudaFree(d_uKeys));
     CUDA_ERR_CHK(cudaFree(d_uLens));

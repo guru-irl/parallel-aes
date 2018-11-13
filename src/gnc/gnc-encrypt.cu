@@ -4,7 +4,7 @@
 #include <fstream>
 #include <cuda.h>
 #include <vector>
-#include <ctime>
+#include <chrono>
 
 #include "../include/aeslib.hpp"
 #include "../include/genlib.hpp"
@@ -63,6 +63,11 @@ void GNC(vector<byte *> &uData, vector<int> &uLens, vector<byte *> &uKeys, vecto
 
         CUDA_ERR_CHK(cudaFree(d_message));
     }
+
+    CUDA_ERR_CHK(cudaFree(d_sbox));
+    CUDA_ERR_CHK(cudaFree(d_mul2));
+    CUDA_ERR_CHK(cudaFree(d_mul3));
+
 }
 
 void get_data(opts vars, vector<byte*> &msgs, vector<int> &lens, vector<byte*> &keys, int i, int j) {
