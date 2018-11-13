@@ -20,14 +20,7 @@ void sliceData(vector<byte *> &uData, vector<int> &uLens, vector<byte *> &sliced
 
     //cut coalesced data into slices
     int n;
-    int n_slices = 0;
     int n_users = uData.size();
-
-    for(int i = 0 ; i < uLens.size() ; ++i)
-        n_slices += ceil((float)uLens[i]/(float)SLICE_LEN);
-
-    slicedData.reserve(n_slices);
-    key_table.reserve(n_slices);
 
     for(int i = 0; i < n_users; i++){
         n = uLens[i];
@@ -47,16 +40,10 @@ void sliceData(vector<byte *> &uData, vector<int> &uLens, vector<byte *> &sliced
     }
 }
 
-void CCS(vector<byte *> &uData, vector<int> &uLens, vector<byte *> &uKeys, vector<byte *> &ciphers){
+void CCS(vector<byte *> &slicedData, vector<int> &uLens, vector<byte *> &uKeys, vector<byte *> &ciphers, vector<int> key_table){
 
     int n;                      //variable to store the length of the message in the loop
     byte expandedKey[176];      //expanded key variable, differs for every user key -> 44*4 = 176
-
-    // we have to slice the data and obtain the key table
-    vector<byte *> slicedData;
-    vector<int> key_table;
-
-    sliceData(uData,uLens, slicedData, key_table);
 
     //nested parallesim is being implemented
     //enables nested parallelism
@@ -145,11 +132,25 @@ int main() {
             vector<byte*> uKeys;
 
             get_data(vars, uData, uLens, uKeys, i, j);
+
+            // we have to slice the data and obtain the key table
+            vector<byte *> slicedData;
+            vector<int> key_table;
+            int n_slices = 0;
+
+            for(int i = 0 ; i < uLens.size() ; ++i)
+                n_slices += ceil((float)uLens[i]/(float)SLICE_LEN);
+
+            slicedData.reserve(n_slices);
+            key_table.reserve(n_slices);
+
+            sliceData(uData,uLens, slicedData, key_table);
+
             vector<byte*> ciphers;
-            ciphers.reserve(i);
+            ciphers.reserve(n_slices);
 
             auto start = chrono::high_resolution_clock::now();
-            CCS(uData, uLens, uKeys, ciphers);
+            CCS(slicedData, uLens, uKeys, ciphers, key_table);
             auto end = chrono::high_resolution_clock::now();
   
             string out_path;

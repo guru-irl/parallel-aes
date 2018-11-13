@@ -19,11 +19,11 @@ void CCNS(vector<byte *> &uData, vector<int> &uLens, vector<byte *> &uKeys, vect
 
     //nested parallesim is being implemented
     //enables nested parallelism
-    omp_set_nested(1);
+    //omp_set_nested(1);
 
     //the total number of cores I have is 4
     //hence the parallelism is split as 2*2 giving a total of threads 
-    omp_set_num_threads(2);
+    omp_set_num_threads(4);
     #pragma omp parallel for
     for(int i = 0; i < uData.size(); i++) {
 
@@ -32,8 +32,8 @@ void CCNS(vector<byte *> &uData, vector<int> &uLens, vector<byte *> &uKeys, vect
         
         KeyExpansion(uKeys[i], expandedKey);
         
-        omp_set_num_threads(2);
-        #pragma omp parallel for 
+        //omp_set_num_threads(2);
+        //#pragma omp parallel for 
         for(int curr_index = 0 ; curr_index<uLens[i] ; curr_index+=16){
 
             AddRoundKey(uData[i] + curr_index , expandedKey);
