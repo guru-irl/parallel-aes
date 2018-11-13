@@ -11,14 +11,14 @@ Advanced Encryption Standard (AES) is a symmetric-key algorithm and is one of th
 This is primarily because AES is implemented in a serial fashion. In the paper titled _`Fei.et.al Practical parallel AES algorithms on cloud for massive users andtheir performance evaluation`_ , the authors have brought out a parallel implementation for AES on the GPU as well as the CPU, which can be easily virtualised on cloud enviroments.  
 AES is parallelisable as it is a symmetric block ciper and the encryption of each block is independent of the other blocks and as a result this can be done in a parallel fashion. The paper uses the concepts of _coalescing_ and _slicing_.
 1. Coalescing: Putting together all the users' data together from the buffer to a contingous memory location.
-2. Slicing: Dividing the coalesced data into equal parts so workload amongst threads is distributed evenly.
+2. Slicing: Dividing the coalesced data into equal parts so workload amongst threads is distributed evenly.  
 The paper talks about 6 algorithms, namely:
  * GCS  : GPU Coalescing and Slicing
  * GCNS : GPU Coalescing and no Slicing
  * GNC  : GPU no Coalescing and no Slicing
  * CCS  : CPU Coalescing and Slicing
  * CCNS : CPU Coalescing and no Slicing
- * CNC  : CPU no Coalescing and no Slicing
+ * CNC  : CPU no Coalescing and no Slicing  
 All these algorithms have been implemented in this project and the results have been recorded, visualised and verified.  
 
 ## Instructions for Use
