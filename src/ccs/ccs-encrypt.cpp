@@ -73,16 +73,17 @@ void CCS(vector<byte *> &slicedData, vector<int> &uLens, vector<byte *> &uKeys, 
     }
 }
 
-void get_data(opts vars, vector<byte*> &msgs, vector<int> &lens, vector<byte*> &keys, int i, int j) {
+long long get_data(opts vars, vector<byte*> &msgs, vector<int> &lens, vector<byte*> &keys, int i, int j) {
 
     if(i < vars.n_files_start || i > vars.n_files_end || j < 0 || j >= vars.m_batches ) {
         cout << "Invalid getdata params";
-        return;
+        return -1;
     }
 
 	string msg_path, key_path;
     ifstream f_msg, f_key;
 
+	long long sum = 0;
     int k, n;
     for(k = 0; k < i; k++) {
         msg_path = vars.path + "/" + to_string(i) + "/" + to_string(j) + "/" + to_string(k);
@@ -95,6 +96,7 @@ void get_data(opts vars, vector<byte*> &msgs, vector<int> &lens, vector<byte*> &
 
 		    f_msg.seekg(0, f_msg.end);
 	        n = f_msg.tellg();
+            sum += n;
     		f_msg.seekg(0, f_msg.beg);
 
             byte *message = new byte[n];
@@ -131,7 +133,7 @@ int main() {
             vector<int> uLens;
             vector<byte*> uKeys;
 
-            get_data(vars, uData, uLens, uKeys, i, j);
+            long long len = get_data(vars, uData, uLens, uKeys, i, j);
 
             // we have to slice the data and obtain the key table
             vector<byte *> slicedData;
@@ -165,7 +167,7 @@ int main() {
             }
             auto _time = chrono::duration_cast<chrono::milliseconds>(end - start);
         	printf("\n N_FILES: %5d | BATCH: %2d | TIME: %10ld ms", i, j, _time.count());
-            data_dump << vars.path << ",CCS," << i << "," << j << "," << _time.count() << endl;
+            data_dump << vars.path << ",CCS," << i << "," << j << "," << _time.count() << "," << len << endl;
         }
         cout << endl;
     }

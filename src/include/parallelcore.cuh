@@ -93,7 +93,7 @@ __device__ void MixColumns(byte *state, byte* d_mul2, byte* d_mul3) {
 __device__ void Round(byte *state, byte *RoundKey, byte *d_sbox, byte *d_mul2, byte *d_mul3, bool isFinal=false) {
     SubBytes(state, d_sbox);
     ShiftRows(state);
-    // if(!isFinal) MixColumns(state, d_mul2, d_mul3);
+    if(!isFinal) MixColumns(state, d_mul2, d_mul3);
     AddRoundKey(state, RoundKey);
 }
 
